@@ -292,6 +292,26 @@ func (r *reader) render() error {
 	}
 	visible := lines[lo : hi+1]
 
+	// The page has to fit above the rule and the status line. On a short
+	// terminal, drop context rather than write more rows than the screen has:
+	// the terminal would scroll, and a scrolled frame tears in a way that
+	// looks exactly like a rendering bug.
+	avail := r.rows - 2
+	if avail < 1 {
+		return r.renderTooSmall()
+	}
+	if len(visible) > avail {
+		start := (active - lo) - avail/2 // keep the active line centred
+		if start < 0 {
+			start = 0
+		}
+		if start+avail > len(visible) {
+			start = len(visible) - avail
+		}
+		lo += start
+		visible = visible[start : start+avail]
+	}
+
 	indent := tui.Indent(r.cols, width)
 	// Centre the page vertically, leaving the last two rows for the rule and
 	// the status line.

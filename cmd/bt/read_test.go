@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -227,4 +228,106 @@ func stripANSI(s string) string {
 		i++
 	}
 	return b.String()
+}
+
+// renderFrame draws one frame into a file and returns the bytes written. The
+// Console's fields are enough to build one without a terminal, which is what
+// lets the frame itself be asserted on.
+func renderFrame(t *testing.T, r *reader, cols, rows int) string {
+	t.Helper()
+	f, err := os.CreateTemp(t.TempDir(), "frame-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	r.con = &tui.Console{Out: f}
+	r.cols, r.rows = cols, rows
+	if err := r.render(); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(f.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// The reported bug, at the level it was seen: the first line of a paragraph
+// appeared twice on screen.
+//
+// The cause was a newline inside a display line. Every row of a frame is
+// terminated by the renderer with "\r\n"; a bare "\n" anywhere else is a row
+// the renderer did not intend, splitting one line across two and pushing
+// everything below it down.
+func TestFrameHasNoStrayNewlines(t *testing.T) {
+	text := "First paragraph, which is long enough to wrap once or twice " +
+		"at the widths a terminal actually has.\n\n" +
+		"Second paragraph, the one whose first line came out twice.\n\n" +
+		"Third paragraph, so there is context below as well.\n"
+
+	// Type into the second paragraph, so it is the active one.
+	r := newReader(text)
+	for i := 0; i < 130; i++ {
+		r.typeRune(r.text[r.offset])
+	}
+
+	for _, size := range [][2]int{{100, 30}, {80, 24}, {72, 20}} {
+		frame := renderFrame(t, r, size[0], size[1])
+		if got, want := strings.Count(frame, "\n"), strings.Count(frame, "\r\n"); got != want {
+			t.Errorf("%dx%d: frame has %d newlines but only %d row terminators — "+
+				"%d stray newline(s) split a row", size[0], size[1], got, want, got-want)
+		}
+	}
+}
+
+// The same bug stated as what the user saw: no line of the book is drawn on
+// two rows of the frame.
+func TestNoLineIsDrawnTwice(t *testing.T) {
+	text := "First paragraph here, with enough words in it to be recognisable.\n\n" +
+		"Second paragraph starts now and carries on for a little while.\n\n" +
+		"Third paragraph, for the context below.\n"
+
+	r := newReader(text)
+	for i := 0; i < 70; i++ {
+		r.typeRune(r.text[r.offset])
+	}
+
+	frame := stripANSI(renderFrame(t, r, 100, 30))
+	rows := strings.Split(frame, "\r\n")
+
+	seen := map[string]int{}
+	for _, row := range rows {
+		if row = strings.TrimSpace(row); row != "" {
+			seen[row]++
+		}
+	}
+	for row, n := range seen {
+		if n > 1 {
+			t.Errorf("the row %q is drawn %d times in one frame", row, n)
+		}
+	}
+}
+
+// A frame is exactly as tall as the terminal. One row too many and the
+// terminal scrolls, which tears the display and looks like a rendering bug.
+func TestFrameIsExactlyTerminalHeight(t *testing.T) {
+	r := newReader(strings.Repeat("A paragraph of a reasonable length.\n\n", 20))
+	for i := 0; i < 200; i++ {
+		r.typeRune(r.text[r.offset])
+	}
+
+	for _, size := range [][2]int{{100, 30}, {80, 24}, {90, 12}, {80, 9}, {80, 8}, {80, 6}} {
+		frame := renderFrame(t, r, size[0], size[1])
+		// Every row but the last is terminated; the last deliberately is not,
+		// or writing it would scroll the terminal by one line.
+		if got, want := strings.Count(frame, "\r\n"), size[1]-1; got != want {
+			t.Errorf("%dx%d: frame has %d terminated rows, want %d",
+				size[0], size[1], got, want)
+		}
+		if strings.HasSuffix(stripANSI(frame), "\r\n") {
+			t.Errorf("%dx%d: the last row is terminated, which scrolls the terminal",
+				size[0], size[1])
+		}
+	}
 }

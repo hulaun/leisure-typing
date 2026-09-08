@@ -61,27 +61,36 @@ type Para struct {
 	Gap   int
 }
 
-// Paras splits the text into paragraphs. A run of one or more blank lines
-// separates them; a single newline inside a paragraph is a space, because
-// normalization has already joined hard-wrapped lines (norm/SPEC.md, §4).
+// Paras splits the text into paragraphs.
+//
+// A run of whitespace holding two or more newlines separates them. A single
+// newline is *inside* a paragraph: normalization has already joined
+// hard-wrapped lines (norm/SPEC.md, §4), and a book imported before that pass
+// existed still has to render.
+//
+// The whole whitespace run is the gap, measured in one go. Testing it a rune
+// at a time is what went wrong first time round: a predicate that only looked
+// forward from a newline never counted the *second* newline of a "\n\n" pair
+// as part of the break, so every paragraph after the first began one rune
+// early — sitting on that newline — and carried it into its first display
+// line, where the renderer wrote it out and split the row in two.
 func Paras(text []rune) []Para {
 	var out []Para
-	i, n := 0, len(text)
+	n := len(text)
+	i := skipSpace(text, 0)
 	for i < n {
-		for i < n && isBreak(text, i) {
-			i++
-		}
-		if i >= n {
-			break
-		}
 		start := i
-		for i < n && !isBreak(text, i) {
-			i++
-		}
-		end := i
-		gap := i
-		for gap < n && isBreak(text, gap) {
-			gap++
+		end, gap := n, n
+		for j := i; j < n; j++ {
+			if text[j] != '\n' {
+				continue
+			}
+			after := skipSpace(text, j)
+			if after >= n || newlinesIn(text[j:after]) >= 2 {
+				end, gap = j, after
+				break
+			}
+			j = after - 1 // a lone newline: the paragraph carries on
 		}
 		out = append(out, Para{Start: start, End: end, Gap: gap})
 		i = gap
@@ -89,24 +98,22 @@ func Paras(text []rune) []Para {
 	return out
 }
 
-// isBreak reports whether the rune at i begins a paragraph break: a newline
-// that is followed, after other whitespace, by another newline or the end of
-// the text.
-func isBreak(text []rune, i int) bool {
-	if text[i] != '\n' {
-		return false
+// skipSpace returns the first index at or after i that is not whitespace.
+func skipSpace(text []rune, i int) int {
+	for i < len(text) && isSpace(text[i]) {
+		i++
 	}
-	for j := i + 1; j < len(text); j++ {
-		switch text[j] {
-		case '\n':
-			return true
-		case ' ':
-			continue
-		default:
-			return false
+	return i
+}
+
+func newlinesIn(rs []rune) int {
+	n := 0
+	for _, r := range rs {
+		if r == '\n' {
+			n++
 		}
 	}
-	return true // a trailing newline ends the last paragraph
+	return n
 }
 
 // Wrap lays out one paragraph greedily into lines no wider than width.
@@ -158,6 +165,12 @@ func Wrap(text []rune, p Para, width int) []Line {
 
 func line(text []rune, start, textEnd, end int) Line {
 	s := strings.TrimRight(string(text[start:textEnd]), " \n")
+	// A display line is one row by construction. A newline left inside it
+	// would be written straight into the frame, splitting the row in two and
+	// pushing everything below it down — which reads on screen as the line
+	// appearing twice. Replacing rather than trimming keeps one rune to one
+	// column, which is what Column depends on.
+	s = strings.ReplaceAll(s, "\n", " ")
 	return Line{Start: start, End: end, Text: s}
 }
 

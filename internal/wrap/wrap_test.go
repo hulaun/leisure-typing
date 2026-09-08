@@ -154,3 +154,94 @@ func TestEmptyText(t *testing.T) {
 		t.Errorf("Window(nil) = %v, %d", win, active)
 	}
 }
+
+// The bug this pins down: a paragraph after the first began one rune early,
+// sitting on the second newline of its break, and carried that newline into
+// its first display line. The renderer wrote it out, the row split in two, and
+// the line appeared twice on screen.
+//
+// No display line may contain a newline, ever. This is the invariant the
+// renderer depends on and the one the original tests missed — they checked for
+// a leading *space*, which a leading newline is not.
+func TestNoLineContainsANewline(t *testing.T) {
+	texts := []string{
+		sample,
+		"One.\n\nTwo.\n\nThree.\n",
+		"A\n\nB",
+		"para one\n\n\n\npara two after several blank lines\n",
+		// Not normalized: a book imported before norm.Normalize existed still
+		// has to render as one row per line.
+		"a hard-wrapped paragraph\nthat still has its own\nline breaks in it\n\nand another\n",
+	}
+	for _, text := range texts {
+		for _, w := range []int{10, 30, 68} {
+			for _, l := range Lines([]rune(text), w) {
+				if strings.Contains(l.Text, "\n") {
+					t.Errorf("width %d, text %.20q: line %q contains a newline", w, text, l.Text)
+				}
+			}
+		}
+	}
+}
+
+// A paragraph starts on text, never on the whitespace that ended the one
+// before, and the gap between them covers that whitespace exactly.
+func TestParagraphBoundaries(t *testing.T) {
+	texts := []string{
+		sample,
+		"One.\n\nTwo.\n\nThree.\n",
+		"  leading space\n\n\n\ntrailing too   \n\n",
+		"no trailing newline\n\nat all",
+	}
+	for _, s := range texts {
+		text := []rune(s)
+		paras := Paras(text)
+		for i, p := range paras {
+			if p.Start >= p.End {
+				t.Errorf("%.20q: paragraph %d is empty: %+v", s, i, p)
+				continue
+			}
+			if isSpace(text[p.Start]) {
+				t.Errorf("%.20q: paragraph %d starts on whitespace %q", s, i, text[p.Start])
+			}
+			// A paragraph may end on trailing spaces, and deliberately does:
+			// they are runes the reader still has to type, so they belong to
+			// the last real line's range, where Column clamps the caret to
+			// the cell past the text. Pushing them into the blank separator
+			// line instead would leave the caret invisible. It must not end
+			// on a newline, though — that is the break, not the paragraph.
+			if text[p.End-1] == '\n' {
+				t.Errorf("%.20q: paragraph %d ends on a newline", s, i)
+			}
+			if p.Gap < p.End {
+				t.Errorf("%.20q: paragraph %d has gap %d before end %d", s, i, p.Gap, p.End)
+			}
+			if i+1 < len(paras) && paras[i+1].Start != p.Gap {
+				t.Errorf("%.20q: paragraph %d ends its gap at %d, but %d starts at %d",
+					s, i, p.Gap, i+1, paras[i+1].Start)
+			}
+		}
+	}
+}
+
+// A single newline is inside a paragraph; two or more separate paragraphs.
+func TestParagraphCount(t *testing.T) {
+	cases := []struct {
+		text string
+		want int
+	}{
+		{"one\ntwo\nthree", 1},
+		{"one\n\ntwo", 2},
+		{"one\n\n\n\ntwo", 2},
+		{"one\n \ntwo", 2}, // a blank line with a space on it is still blank
+		{"one\n\ntwo\n\nthree\n", 3},
+		{"\n\n\nonly one\n\n\n", 1},
+		{"", 0},
+		{"   \n\n  ", 0},
+	}
+	for _, c := range cases {
+		if got := len(Paras([]rune(c.text))); got != c.want {
+			t.Errorf("Paras(%q) found %d paragraphs, want %d", c.text, got, c.want)
+		}
+	}
+}
