@@ -45,8 +45,21 @@ context is the right amount, and whether a wrong character advancing the caret
 
 ### What was decided by building it
 
-- **Open question 1 — context.** Three lines each way, as `contextLines` in
-  `cmd/bt/read.go`, next to the wrap width. Both are one constant each.
+- **Open question 1 — context.** Three lines each way to begin with, then
+  **changed on request on 2026-09-08 to fill the terminal**: as many context
+  lines as there are rows for, and the text wrapped to the full width rather
+  than to a 68-column measure centred in the screen.
+
+  Both are still one constant each in `cmd/bt/read.go`, and zero now means "as
+  much as the terminal has": `contextLines = 3` and `wrapWidth = 68` put the
+  old layout back. CLAUDE.md's "Layout on screen" keeps the argument for the
+  measure — past about 70 characters the eye loses its place returning to the
+  start of the next line — so that going back is a decision with its reasons
+  written down rather than a guess.
+
+  One column of the width is reserved and always will be: the active line
+  draws a cell past its text for the caret to sit in, and without it a
+  full-width line wraps and pushes the frame down a row.
 - **Open question 2 — the caret on a wrong character.** It advances, and the
   cell shows the character that *should* have been typed, in red. The wrongly
   typed one is never inserted, so the line stays aligned and the wrapping

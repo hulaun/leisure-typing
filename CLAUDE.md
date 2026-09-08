@@ -151,21 +151,40 @@ own files and none of them belongs in the repo.
 ## Layout on screen
 
 Context above and below the active line, so it reads as a book rather than as a
-test. Roughly 68 columns, centred in whatever width the terminal is.
+test. **The page is the whole terminal**, in both directions: text wraps to the
+full width, and there are as many context lines as there are rows for.
 
 ```
-  two or three lines already typed, dimmed, so the eye has somewhere
-  to return to when it loses its place on the page.
+lines already typed, dimmed, filling the screen upwards, so the eye has
+somewhere to return to when it loses its place on the page.
 
-  the active line, typed portion in normal weight, a caret, and then
-  the rest of it bright with wrong characters in red
+the active line, typed portion in normal weight, a caret, and then the rest of
+it bright with wrong characters in red
 
-  two or three lines still to come, dimmed the same as the ones above
-  so that the active line is the only bright thing on the screen.
+lines still to come, dimmed the same as the ones above so that the active line
+is the only bright thing on the screen, running down as far as the rule.
 
-  ------------------------------------------------------------------
-  Chapter 4                                        23%   9,240 words
+--------------------------------------------------------------------------
+Chapter 4                                                 23%   9,240 words
 ```
+
+This was **changed on request on 2026-09-08**. It was built the other way, and
+the argument for the old way is worth keeping, because it is the reason to go
+back if the full width turns out to read badly:
+
+> Roughly 68 columns, centred in whatever width the terminal is. Past about 70
+> characters the eye starts losing its place coming back to the start of the
+> next line, which is why books, newspapers and this document are all set to a
+> measure rather than to the width of the paper.
+
+Both are one constant each in `cmd/bt/read.go`: `wrapWidth = 68` restores the
+measure, `contextLines = 3` restores the band of context. Zero means "as much
+as the terminal has".
+
+One column of the width is reserved and always will be. The active line draws
+a cell *past* its text, for the caret to sit in when the next thing to type is
+the whitespace a line break consumed; without that column a full-width line
+runs one past the edge, wraps, and pushes the whole frame down a row.
 
 Colours: dim for context, normal for typed-correct, red for typed-wrong, bright
 for untyped-on-the-active-line, and a caret. That is the entire palette and it

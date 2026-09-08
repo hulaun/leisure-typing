@@ -331,3 +331,75 @@ func TestFrameIsExactlyTerminalHeight(t *testing.T) {
 		}
 	}
 }
+
+// The page uses the whole terminal, in both directions. This replaced a
+// 68-column measure centred in the terminal, on request; see the note on the
+// geometry constants.
+func TestPageFillsTheTerminal(t *testing.T) {
+	// One long paragraph, so there are no blank separator rows to muddy the
+	// count of how much of the screen is page.
+	r := newReader(strings.Repeat(
+		"Prose that runs on for a good while and wraps at any sensible width. ", 300) + "\n")
+	for i := 0; i < 900; i++ {
+		r.typeRune(r.text[r.offset])
+	}
+
+	for _, size := range [][2]int{{100, 30}, {120, 40}, {80, 24}} {
+		cols, rowCount := size[0], size[1]
+		frame := stripANSI(renderFrame(t, r, cols, rowCount))
+		rows := strings.Split(frame, "\r\n")
+
+		if len(rows) != rowCount {
+			t.Fatalf("%dx%d: frame has %d rows, want %d", cols, rowCount, len(rows), rowCount)
+		}
+
+		// Every row above the rule is page, with nothing left blank.
+		for i := 0; i < rowCount-2; i++ {
+			if strings.TrimSpace(rows[i]) == "" {
+				t.Errorf("%dx%d: row %d is blank; the page does not fill the height",
+					cols, rowCount, i+1)
+			}
+		}
+
+		// The text uses the full width: wider than the old 68-column measure,
+		// and never wider than the terminal.
+		widest := 0
+		for i := 0; i < rowCount-2; i++ {
+			if n := len([]rune(rows[i])); n > widest {
+				widest = n
+			}
+		}
+		if widest <= 68 {
+			t.Errorf("%dx%d: the widest row is %d columns; the page is not using the width",
+				cols, rowCount, widest)
+		}
+		if widest > cols {
+			t.Errorf("%dx%d: a row is %d columns, wider than the terminal",
+				cols, rowCount, widest)
+		}
+
+		// The last row must not fill its final cell: that leaves the cursor
+		// in the terminal's pending-wrap state, and the next write scrolls.
+		if n := len([]rune(rows[rowCount-1])); n >= cols {
+			t.Errorf("%dx%d: the status row is %d columns and fills the last cell",
+				cols, rowCount, n)
+		}
+	}
+}
+
+// At the very start of a book there is nothing above to show, so the page
+// fills downwards instead of sitting half empty in the middle.
+func TestPageFillsFromTheTopAtTheStart(t *testing.T) {
+	r := newReader(strings.Repeat("A sentence of perfectly ordinary length goes here. ", 200) + "\n")
+
+	frame := stripANSI(renderFrame(t, r, 100, 24))
+	rows := strings.Split(frame, "\r\n")
+	if strings.TrimSpace(rows[0]) == "" {
+		t.Errorf("the first row is blank at the start of a book:\n%s", frame)
+	}
+	for i := 0; i < 22; i++ {
+		if strings.TrimSpace(rows[i]) == "" {
+			t.Errorf("row %d is blank; the page did not fill downwards", i+1)
+		}
+	}
+}

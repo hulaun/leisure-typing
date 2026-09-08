@@ -16,9 +16,17 @@ import (
 
 // Geometry, in one place. Nothing else hardcodes a width (CLAUDE.md,
 // conventions).
+//
+// Both of the page dimensions are zero, which means "as much as the terminal
+// has": the whole width, and as many context lines as there are rows for. That
+// is a change from the 68-column centred measure this was built with, made on
+// request on 2026-09-08 — CLAUDE.md's "Layout on screen" records the argument
+// against it, which is that a line much past 70 characters is measurably
+// harder to read because the eye loses its place coming back to the start of
+// the next one. Set wrapWidth back to 68 to get it back.
 const (
-	wrapWidth    = 68 // the reading column, centred in the terminal
-	contextLines = 3  // dimmed lines above and below the active one
+	wrapWidth    = 0  // the reading column; 0 is the terminal's full width
+	contextLines = 0  // dimmed lines each side; 0 is as many as fit
 	minWidth     = 20 // below this the terminal is unusable
 
 	saveDebounce = 2 * time.Second
@@ -273,33 +281,53 @@ func (r *reader) save() error {
 // --- rendering --------------------------------------------------------------
 
 func (r *reader) render() error {
-	width := wrapWidth
-	if width > r.cols-4 {
-		width = r.cols - 4
+	// The page has to fit above the rule and the status line.
+	avail := r.rows - 2
+	if avail < 1 {
+		return r.renderTooSmall()
+	}
+
+	width := r.cols
+	if wrapWidth > 0 && wrapWidth < width {
+		width = wrapWidth
+	}
+	// The active line draws one cell past its text: the caret has to have
+	// somewhere to sit when the next thing to type is the whitespace a break
+	// consumed. Leave a column for it, or a full-width line runs one past the
+	// edge, wraps, and pushes the whole frame down a row. It also keeps the
+	// last row from filling its final cell, which would leave the cursor in
+	// the terminal's pending-wrap state.
+	if width >= r.cols {
+		width = r.cols - 1
 	}
 	if width < minWidth {
 		return r.renderTooSmall()
 	}
 
-	lines, active := wrap.Window(r.text, r.offset, width, contextLines, contextLines)
-	lo := active - contextLines
+	// Asking for a screenful of context each way is what fills the page: the
+	// window is then trimmed to what actually fits, just below.
+	context := contextLines
+	if context <= 0 {
+		context = avail
+	}
+
+	lines, active := wrap.Window(r.text, r.offset, width, context, context)
+	lo := active - context
 	if lo < 0 {
 		lo = 0
 	}
-	hi := active + contextLines
+	hi := active + context
 	if hi > len(lines)-1 {
 		hi = len(lines) - 1
 	}
 	visible := lines[lo : hi+1]
 
-	// The page has to fit above the rule and the status line. On a short
-	// terminal, drop context rather than write more rows than the screen has:
-	// the terminal would scroll, and a scrolled frame tears in a way that
-	// looks exactly like a rendering bug.
-	avail := r.rows - 2
-	if avail < 1 {
-		return r.renderTooSmall()
-	}
+	// On a short terminal, drop context rather than write more rows than the
+	// screen has: the terminal would scroll, and a scrolled frame tears in a
+	// way that looks exactly like a rendering bug. Near the start or the end
+	// of a book the clamp runs up against an edge, which is what lets the
+	// page still fill from the top or the bottom rather than sitting in the
+	// middle with nothing to show.
 	if len(visible) > avail {
 		start := (active - lo) - avail/2 // keep the active line centred
 		if start < 0 {
