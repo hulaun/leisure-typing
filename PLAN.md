@@ -11,14 +11,19 @@ packages take the user.
 ## Status — 2026-09-08
 
 M1–M4 are built and the app runs end to end on `.txt`. `go test ./...` is
-green; the red loop is red for exactly the two reserved packages.
+green; the red loop is red for `epub.Extract` alone.
+
+`norm.Normalize` was reserved and is not any more — it was handed over on
+request after the rest was built, and is written. `internal/norm/table.go` is
+the character table, `norm.go` the passes over it, and its tests have moved
+into the default suite.
 
 | | State |
 |---|---|
 | M0 console spike | **folded into `internal/tui`** — see below |
 | M1 import and storage | done |
 | M2 the reader | done, pending the twenty-minute sit-down |
-| M3 EPUB | scaffolding done, both packages **reserved and red** |
+| M3 EPUB | scaffolding done; `norm` written, `epub.Extract` **reserved and red** |
 | M4 converters and the shim | done; `bt.cmd` is installed |
 | M5 polish | chapter offsets and the error log landed early, being cheap |
 
@@ -50,16 +55,26 @@ context is the right amount, and whether a wrong character advancing the caret
   mistakes in the text. Whether a chapter-number line should be skipped too is
   still open, and wants real use.
 - **Open question 4 — the source file.** Kept, as `source.<ext>`.
-- **Open question 5 — front matter.** Left inside the reserved work, and
-  written down as §8 of `internal/norm/SPEC.md`: a conservative trim to the
-  last chapter opening in the first 10%, and no trim at all when there is no
-  heading to find.
+- **Open question 5 — front matter.** Now answered in code, as §8 of
+  `internal/norm/SPEC.md`: trim to the first chapter heading that has 400
+  characters of prose behind it, which walks past a contents page without
+  eating real chapters; no trim at all when there is no heading to find. It is
+  part of `Normalize` rather than a separate step, because it needs the
+  paragraph structure that `Normalize` has just built.
+
+  Both halves of that rule were wrong first time, in the same direction —
+  cutting too much. A fixture in `internal/book` caught it: two real chapters a
+  few lines apart look exactly like two contents entries, and the original
+  "last heading in the window" rule threw chapter one away. The spec records
+  what changed and why; `TestFrontMatterDoesNotEatCloseChapters` holds it
+  down.
 
 ### Not yet true
 
 - No EPUB, PDF or MOBI has actually been imported end to end, because
   `epub.Extract` is reserved and neither converter is installed on this
-  machine. The dispatch, the error paths and the messages are built and
+  machine. The normalizer they all feed is written and tested, so what is
+  untried is the extraction in front of it, not the pass behind it. The dispatch, the error paths and the messages are built and
   tested; the conversions themselves are unrun.
 - `bt` has not been sat in for twenty minutes. M2's done-when is unmet until
   it has been.

@@ -3,11 +3,11 @@
 Unicode book text in, typeable ASCII out. The contract is on `Normalize`'s doc
 comment; this file is the character table behind it.
 
-The tests in `norm_test.go` are the executable form of this document. They skip
-unless `LEISURE_TODO=1` is set:
+The tests in `norm_test.go` are the executable form of this document, and
+`table.go` is §1-6 in code. Both run in the default suite:
 
 ```bash
-LEISURE_TODO=1 go test ./internal/norm/ -v
+go test ./internal/norm/ -v
 ```
 
 ---
@@ -121,17 +121,43 @@ type.
 The extracted text of a book opens with a title page, a copyright page, and
 often a table of contents. Nobody wants to type an ISBN.
 
-The rule, deliberately conservative — a false trim loses real text, and a
-missed one costs a minute of typing:
+The rule is deliberately conservative, because the two failures are not
+symmetrical: a false trim silently loses real text, while a missed one costs a
+minute of typing.
 
-- Scan only the first 10% of the text, or the first 20 000 characters,
-  whichever is smaller.
-- Find the last line in that window that matches a chapter opening: `CHAPTER`,
-  `Chapter`, a bare roman numeral, `PART`, `BOOK`, or `PROLOGUE`, alone on its
-  line, possibly followed by a number or a title.
-- If one is found, and it is not the first line of the text, drop everything
-  before it.
-- If none is found, change nothing.
+- Scan a window at the start of the text: the first 10%, capped at 20 000
+  characters, but never less than 2 000 — the floor is what keeps the rule
+  meaningful on a short text, where a tenth is a line and a half.
+- Within it, find the lines that match a chapter opening: `CHAPTER`,
+  `Chapter`, `PART`, `BOOK`, `PROLOGUE` or `EPILOGUE` with an optional number
+  or title after it, or a bare roman numeral, alone on the line.
+- Take the **first such heading with at least 400 characters behind it** —
+  behind it meaning before the next heading, or before the end of the text for
+  the last one.
+- If no heading has that much room, take the **first** heading.
+- If that heading is not already at offset zero, drop everything before it.
+- If there are no headings at all, change nothing.
 
-Copyright pages inside the window are covered by the same cut. A book with no
-chapter headings at all keeps all of its text, which is the safe failure.
+The 400-character gap is what separates a real heading from a table of
+contents. TOC entries sit a line apart, so a run of them is walked straight
+past; the heading that has actual prose behind it is where the book starts.
+
+Both halves of that rule were got wrong first time, and both failures were the
+same failure — cutting too much:
+
+- The first draft said "the last heading in the window". That reads a contents
+  page correctly and then eats the opening chapters of any book whose first
+  tenth holds more than one of them.
+- The gap test then had no answer for the *last* heading, having nothing to
+  measure it against, so a book whose body begins at the final front-matter
+  heading was never found. Measuring that one against the end of the text
+  fixes it.
+- And the fallback, when nothing has room behind it, must be the **first**
+  heading rather than the last. Two real chapters a few lines apart look
+  exactly like two contents entries; there is no telling them apart, so keep
+  the text. `TestFrontMatterDoesNotEatCloseChapters` is that case.
+
+A book with no chapter headings keeps all of its text, which is the safe way
+to fail. Every choice above leans the same way: when the rule cannot tell, it
+keeps text and costs a minute of typing, rather than trimming and losing a
+chapter silently.

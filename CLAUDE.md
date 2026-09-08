@@ -81,8 +81,8 @@ width can be changed later without breaking every saved position.
 
 ## Division of work — IMPORTANT
 
-The user builds the algorithmically interesting parts themselves. **Two are
-reserved:**
+The user builds the algorithmically interesting parts themselves. **One is
+still reserved:**
 
 1. **`internal/epub.Extract`** — the container/OPF/spine walk and the XHTML to
    text reduction. Given an `.epub`, return the book's text in reading order.
@@ -90,25 +90,31 @@ reserved:**
    judgement is in block-level element handling, what to drop, and where
    paragraph breaks belong.
 
-2. **`internal/norm.Normalize`** — the character table. Unicode text in, typeable
-   ASCII out, plus the front-matter and footnote-marker rules.
-
-Both ship as stubs with the contract wired up, a written spec, and fixtures
-that are red. Everything around them is finished, so the app runs end to end on
-`.txt` books while both are unwritten — that is deliberate, the same way
-quick-tools' reserved scripts are each a capability the tool does not have yet
-rather than a working feature handed back as a stub.
+It ships as a stub with the contract wired up, a written spec
+(`internal/epub/SPEC.md`), and fixtures that are red — including a hand-built
+`minimal.epub` whose manifest order deliberately disagrees with its spine.
+Everything around it is finished, so the app runs end to end on `.txt` books
+while it is unwritten — that is deliberate, the same way quick-tools' reserved
+scripts are each a capability the tool does not have yet rather than a working
+feature handed back as a stub.
 
 The red loop is kept out of the default suite so `go test ./...` stays green:
 
 ```bash
-LEISURE_TODO=1 go test ./internal/epub/ ./internal/norm/ -v
+LEISURE_TODO=1 go test ./internal/epub/ -v
 ```
 
 Without the variable those tests skip, printing why.
 
-**Do not implement these.** If asked to "finish the project", finish everything
-except these two and say so.
+**Do not implement it.** If asked to "finish the project", finish everything
+except this and say so.
+
+**`internal/norm.Normalize` was reserved and is no longer.** The user asked for
+it on 2026-09-08, after the rest was built, and it is written:
+`internal/norm/table.go` is the character table, `norm.go` the passes over it,
+and its tests now run in the default suite rather than behind `LEISURE_TODO`.
+`SPEC.md` stays as the statement of what it must do, and §8 was revised in the
+writing — see the note there about the table-of-contents case.
 
 The instinct generalises, as it does in quick-tools: when a task has a genuinely
 interesting algorithmic core — parser, scheduler, diff, solver — ask before
@@ -230,7 +236,7 @@ go test ./...                  # default suite, stays green
 go vet ./...
 go build -o bin/bt.exe ./cmd/bt
 
-LEISURE_TODO=1 go test ./internal/epub/ ./internal/norm/ -v   # the red loop
+LEISURE_TODO=1 go test ./internal/epub/ -v   # the red loop
 ```
 
 The binary is `bt`. A shim in `%LOCALAPPDATA%\Microsoft\WindowsApps` (on the
@@ -252,7 +258,7 @@ bt use <name>         switch the current book
 ```
 cmd/bt/            the binary; flags, subcommands, the run loop
 internal/epub/     EPUB -> text          [RESERVED for the user]
-internal/norm/     Unicode -> ASCII      [RESERVED for the user]
+internal/norm/     Unicode -> ASCII      the character table
 internal/book/     import pipeline, meta.json, the on-disk store
 internal/progress/ progress.json: read, write, hash check
 internal/tui/      console mode, alt screen, frame buffer, input decode
