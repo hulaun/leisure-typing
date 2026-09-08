@@ -10,20 +10,21 @@ packages take the user.
 
 ## Status — 2026-09-08
 
-M1–M4 are built and the app runs end to end on `.txt`. `go test ./...` is
-green; the red loop is red for `epub.Extract` alone.
+M1–M4 are built and the whole app runs end to end, on `.txt` and on `.epub`.
+`go test ./...` is green and now covers everything: `LEISURE_TODO` gates
+nothing any more, because there is no longer a red loop to gate.
 
-`norm.Normalize` was reserved and is not any more — it was handed over on
-request after the rest was built, and is written. `internal/norm/table.go` is
-the character table, `norm.go` the passes over it, and its tests have moved
-into the default suite.
+**Both reserved packages were handed over on request**, after the rest was
+built, and both are written. `internal/norm/table.go` is the character table
+and `norm.go` the passes over it; `internal/epub/epub.go` is the container,
+OPF, spine and XHTML walk. Their two `SPEC.md` files stay authoritative.
 
 | | State |
 |---|---|
 | M0 console spike | **folded into `internal/tui`** — see below |
 | M1 import and storage | done |
 | M2 the reader | done, pending the twenty-minute sit-down |
-| M3 EPUB | scaffolding done; `norm` written, `epub.Extract` **reserved and red** |
+| M3 EPUB | done — `epub` and `norm` both written, tests in the default suite |
 | M4 converters and the shim | done; `bt.cmd` is installed |
 | M5 polish | chapter offsets and the error log landed early, being cheap |
 
@@ -71,10 +72,18 @@ context is the right amount, and whether a wrong character advancing the caret
 
 ### Not yet true
 
-- No EPUB, PDF or MOBI has actually been imported end to end, because
-  `epub.Extract` is reserved and neither converter is installed on this
-  machine. The normalizer they all feed is written and tested, so what is
-  untried is the extraction in front of it, not the pass behind it. The dispatch, the error paths and the messages are built and
+- **No PDF or MOBI has been imported end to end**, because neither converter
+  is installed on this machine. The dispatch, the error paths and the messages
+  are built and tested; the conversions themselves are unrun. An EPUB now
+  imports for real — `internal/epub/testdata/minimal.epub` goes in and comes
+  out as text with its spine order, its percent-encoded href and its
+  `linear="no"` document all handled.
+- **`<br/>` does not survive the import.** `epub` emits it as a line break, as
+  its spec says verse needs; `norm` then joins single newlines into spaces, as
+  its spec says a hard-wrapped `.txt` needs. Both rules are right alone and
+  they disagree here. Prose is unaffected and verse comes out as one long
+  line. The note under epub/SPEC.md §2 says where the fix belongs if a book of
+  poetry ever makes the case; it is deliberately not fixed yet. The dispatch, the error paths and the messages are built and
   tested; the conversions themselves are unrun.
 - `bt` has not been sat in for twenty minutes. M2's done-when is unmet until
   it has been.

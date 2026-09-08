@@ -81,53 +81,39 @@ width can be changed later without breaking every saved position.
 
 ## Division of work — IMPORTANT
 
-The user builds the algorithmically interesting parts themselves. **One is
-still reserved:**
+**Nothing is reserved any more.** Both of the packages this section held back
+for the user were handed over on request on 2026-09-08, after the rest was
+built, and both are written:
 
 1. **`internal/epub.Extract`** — the container/OPF/spine walk and the XHTML to
-   text reduction. Given an `.epub`, return the book's text in reading order.
-   The mechanical shape is `archive/zip` and `encoding/xml`, both stdlib; the
-   judgement is in block-level element handling, what to drop, and where
-   paragraph breaks belong.
+   text reduction. `SPEC.md` in that directory is the rule set;
+   `testdata/minimal.epub` and its generator are the fixture, built so the
+   manifest order disagrees with the spine and one href is percent-encoded.
 
-It ships as a stub with the contract wired up, a written spec
-(`internal/epub/SPEC.md`), and fixtures that are red — including a hand-built
-`minimal.epub` whose manifest order deliberately disagrees with its spine.
-Everything around it is finished, so the app runs end to end on `.txt` books
-while it is unwritten — that is deliberate, the same way quick-tools' reserved
-scripts are each a capability the tool does not have yet rather than a working
-feature handed back as a stub.
+2. **`internal/norm.Normalize`** — the character table. `table.go` is the table
+   itself, grouped by what a run of characters becomes; `norm.go` is the passes
+   over it.
 
-The red loop is kept out of the default suite so `go test ./...` stays green:
+Both packages' tests now run in the default suite. `LEISURE_TODO` no longer
+gates anything, and `go test ./...` covers everything there is.
 
-```bash
-LEISURE_TODO=1 go test ./internal/epub/ -v
-```
+The two `SPEC.md` files stay, and stay authoritative. They are the statement of
+what these packages must do, written before the code and revised where the
+code proved them wrong — see norm §8 on the table-of-contents case, and the
+note under epub §2 on `<br/>` and verse. Change the spec and the tests when the
+behaviour should change; do not quietly let them drift apart.
 
-Without the variable those tests skip, printing why.
-
-**Do not implement it.** If asked to "finish the project", finish everything
-except this and say so.
-
-**`internal/norm.Normalize` was reserved and is no longer.** The user asked for
-it on 2026-09-08, after the rest was built, and it is written:
-`internal/norm/table.go` is the character table, `norm.go` the passes over it,
-and its tests now run in the default suite rather than behind `LEISURE_TODO`.
-`SPEC.md` stays as the statement of what it must do, and §8 was revised in the
-writing — see the note there about the table-of-contents case.
-
-The instinct generalises, as it does in quick-tools: when a task has a genuinely
-interesting algorithmic core — parser, scheduler, diff, solver — ask before
-implementing it. Build the mechanical parts fully; those were never the point.
-
----
+The instinct that put them here in the first place still generalises, as it
+does in quick-tools: when a task has a genuinely interesting algorithmic core —
+parser, scheduler, diff, solver — ask before implementing it. The user asked
+for these two explicitly; that is what changed, not the default.
 
 ## Format support
 
 | Format | How | State |
 |---|---|---|
 | `.txt` | read it | native |
-| `.epub` | ZIP of XHTML, walk the spine | native, reserved (above) |
+| `.epub` | ZIP of XHTML, walk the spine | native |
 | `.pdf` | shell out to `pdftotext -layout` (poppler) | external |
 | `.mobi`, `.azw3`, `.fb2` | shell out to `ebook-convert` (Calibre) | external |
 
@@ -235,8 +221,6 @@ export PATH="$PATH:/c/Program Files/Go/bin"
 go test ./...                  # default suite, stays green
 go vet ./...
 go build -o bin/bt.exe ./cmd/bt
-
-LEISURE_TODO=1 go test ./internal/epub/ -v   # the red loop
 ```
 
 The binary is `bt`. A shim in `%LOCALAPPDATA%\Microsoft\WindowsApps` (on the
@@ -257,7 +241,7 @@ bt use <name>         switch the current book
 
 ```
 cmd/bt/            the binary; flags, subcommands, the run loop
-internal/epub/     EPUB -> text          [RESERVED for the user]
+internal/epub/     EPUB -> text          container, spine, XHTML
 internal/norm/     Unicode -> ASCII      the character table
 internal/book/     import pipeline, meta.json, the on-disk store
 internal/progress/ progress.json: read, write, hash check

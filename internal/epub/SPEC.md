@@ -4,7 +4,7 @@
 `Extract`'s doc comment; this file is how to get there.
 
 ```bash
-LEISURE_TODO=1 go test ./internal/epub/ -v
+go test ./internal/epub/ -v
 ```
 
 The fixture `testdata/minimal.epub` is hand-built by `testdata/make_epub.go`
@@ -17,9 +17,11 @@ and exercises every rule below. It is small enough to read in full.
 An EPUB is a ZIP. Four steps, each of which can fail and must fail loudly:
 
 1. **`mimetype`** — the first entry, stored uncompressed, containing exactly
-   `application/epub+zip`. Worth checking; a missing or wrong one means this is
-   not an EPUB. (Do not require it to be the *first* entry — plenty of real
-   books in the wild get the ordering wrong, and the content is still fine.)
+   `application/epub+zip`. Neither the ordering nor the compression is checked:
+   plenty of real books in the wild get them wrong and their content is still
+   fine. A *wrong* mimetype is refused; a **missing** one is tolerated, because
+   `container.xml` is the real test of whether this is an EPUB and refusing on
+   the weaker signal only loses readable books.
 
 2. **`META-INF/container.xml`** — points at the package document:
 
@@ -75,6 +77,19 @@ in novels are almost always layout artefacts and typing one is miserable.
 `small`, `u`, `q`, `cite`, `abbr`, `code`.
 
 **`br`** — a single newline, not a paragraph break. Verse depends on it.
+
+> **Open, and it needs a decision from real use.** `norm.Normalize` then treats
+> a single newline inside a paragraph as the hard wrapping of a plain-text book
+> and joins it into a space (norm/SPEC.md §4) — so the line break a `<br/>`
+> preserves here does not survive the import. Prose is unaffected; verse comes
+> out as one long line.
+>
+> The two rules are each right alone and they disagree on this one case. There
+> is no fixing it in `norm`: in a `.txt` there is no telling a verse break from
+> a wrap artefact, and joining is what makes a stored book re-wrappable at all.
+> If it matters, the fix belongs here — emit a paragraph break for `<br/>`
+> inside a verse context, since this is the layer that actually knows a `<br/>`
+> was written. Left alone until a book of poetry makes the case.
 
 **Footnote links** — an `<a>` whose `epub:type` is `noteref`, or whose class
 contains `footnote` or `noteref`, is dropped with its text. The marker is not
