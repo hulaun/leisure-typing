@@ -1,0 +1,137 @@
+# `norm.Normalize` — the spec
+
+Unicode book text in, typeable ASCII out. The contract is on `Normalize`'s doc
+comment; this file is the character table behind it.
+
+The tests in `norm_test.go` are the executable form of this document. They skip
+unless `LEISURE_TODO=1` is set:
+
+```bash
+LEISURE_TODO=1 go test ./internal/norm/ -v
+```
+
+---
+
+## 1. Quotation marks and apostrophes
+
+| In | Out | Note |
+|---|---|---|
+| `U+2018 U+2019` `‘ ’` | `'` | single quotes, and the apostrophe in *don’t* |
+| `U+201A U+201B` `‚ ‛` | `'` | low and reversed single |
+| `U+201C U+201D` `“ ”` | `"` | double quotes |
+| `U+201E U+201F` `„ ‟` | `"` | low and reversed double |
+| `U+2039 U+203A` `‹ ›` | `'` | single angle quotes |
+| `U+00AB U+00BB` `« »` | `"` | double angle quotes |
+| `U+02BC` `ʼ` | `'` | modifier letter apostrophe |
+| `U+0060 U+00B4` `` ` `` `´` | `'` | grave and acute used as quotes |
+
+## 2. Dashes and hyphens
+
+| In | Out | Note |
+|---|---|---|
+| `U+2010 U+2011` `‐ ‑` | `-` | hyphen, non-breaking hyphen |
+| `U+2012 U+2013` `‒ –` | `-` | figure dash, en dash |
+| `U+2014 U+2015` `— ―` | ` - ` | em dash, horizontal bar — spaced |
+| `U+2212` `−` | `-` | minus sign |
+| `U+00AD` `­` | *(removed)* | **soft hyphen**: delete, joining the word |
+
+The em dash becomes a spaced hyphen rather than a bare one so that
+`word—word` does not become the single unwrappable token `word-word`. Collapse
+the result: `word — word`, never a double space.
+
+## 3. Spaces
+
+| In | Out |
+|---|---|
+| `U+00A0` no-break space | ` ` |
+| `U+2000`–`U+200A` en/em/thin/hair quad spaces | ` ` |
+| `U+202F` narrow no-break space | ` ` |
+| `U+205F` medium mathematical space | ` ` |
+| `U+3000` ideographic space | ` ` |
+| `U+0009` tab | ` ` |
+| `U+200B U+200C U+200D U+2060 U+FEFF` zero-width, ZWNJ, ZWJ, word joiner, BOM | *(removed)* |
+
+Runs of two or more spaces collapse to one. Trailing spaces on a line are cut.
+
+## 4. Line and paragraph structure
+
+- `\r\n` and lone `\r` become `\n`.
+- `U+2028` line separator and `U+2029` paragraph separator become `\n`.
+- A run of two or more `\n` is a paragraph break: exactly one blank line.
+- A single `\n` inside a paragraph is a hard-wrap artefact: it becomes a space
+  and the lines join. A book stored at 72 columns must come out as one long
+  line per paragraph, because wrapping is a view (CLAUDE.md, decision 5).
+- A line ending in `-` followed by a lowercase letter on the next line is a
+  word broken across the break: join with no space and drop the hyphen.
+  `disap-\npointed` → `disappointed`. Do not join when the next line starts
+  with a capital — `Anglo-\nSaxon` keeps its hyphen.
+- No leading or trailing blank lines. The result ends in exactly one `\n`.
+
+## 5. Ligatures and letters
+
+| In | Out |
+|---|---|
+| `ﬀ ﬁ ﬂ ﬃ ﬄ` `U+FB00`–`U+FB04` | `ff fi fl ffi ffl` |
+| `Æ æ Œ œ` | `AE ae OE oe` |
+| `ß` | `ss` |
+| `Ø ø` | `O o` |
+| `Đ đ Ð ð Þ þ` | `D d D d Th th` |
+| `Ł ł` | `L l` |
+
+Every other accented Latin letter loses its accent: decompose to NFD and drop
+the combining marks, so `é`→`e`, `ñ`→`n`, `ü`→`u`, `Å`→`A`. `golang.org/x/text`
+is deliberately *not* a dependency; a table for Latin-1 and Latin Extended-A
+covers essentially every novel in English.
+
+## 6. Punctuation and symbols
+
+| In | Out |
+|---|---|
+| `U+2026` `…` | `...` |
+| `U+2022 U+00B7 U+2023 U+25E6` bullets | `*` |
+| `U+00A9` `©` | `(c)` |
+| `U+00AE` `®` | `(R)` |
+| `U+2122` `™` | `(TM)` |
+| `U+00B0` `°` | ` degrees` |
+| `U+00BD U+00BC U+00BE` `½ ¼ ¾` | `1/2 1/4 3/4` |
+| `U+2032 U+2033` `′ ″` | `' "` |
+| `U+00D7 U+00F7` `× ÷` | `x /` |
+| `U+2190`–`U+21FF` arrows | `->` and `<-` as they fit |
+| `£ € ¥ ¢` | `GBP EUR JPY c` |
+
+Anything still non-ASCII after all of the above is **dropped**, not replaced
+with `?`. A stray glyph that survives is better silently absent than sitting in
+the text as an untypeable character.
+
+## 7. Footnote markers
+
+Books carry markers that are not part of the sentence and that nobody wants to
+type.
+
+- Superscript digits `U+00B9 U+00B2 U+00B3` and `U+2070`–`U+209F`: removed.
+- A bracketed number immediately after a word, with no space before it —
+  `word[1]`, `word[12]` — is a marker: removed.
+- `word{1}` likewise.
+- A bare `*` or `†` or `‡` attached to the end of a word: removed.
+- A bracketed number *with* a space before it is left alone. `see [3] below`
+  is prose about a reference; `word[3]` is a marker.
+
+## 8. Front matter
+
+The extracted text of a book opens with a title page, a copyright page, and
+often a table of contents. Nobody wants to type an ISBN.
+
+The rule, deliberately conservative — a false trim loses real text, and a
+missed one costs a minute of typing:
+
+- Scan only the first 10% of the text, or the first 20 000 characters,
+  whichever is smaller.
+- Find the last line in that window that matches a chapter opening: `CHAPTER`,
+  `Chapter`, a bare roman numeral, `PART`, `BOOK`, or `PROLOGUE`, alone on its
+  line, possibly followed by a number or a title.
+- If one is found, and it is not the first line of the text, drop everything
+  before it.
+- If none is found, change nothing.
+
+Copyright pages inside the window are covered by the same cut. A book with no
+chapter headings at all keeps all of its text, which is the safe failure.

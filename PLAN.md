@@ -8,6 +8,64 @@ packages take the user.
 
 ---
 
+## Status — 2026-09-08
+
+M1–M4 are built and the app runs end to end on `.txt`. `go test ./...` is
+green; the red loop is red for exactly the two reserved packages.
+
+| | State |
+|---|---|
+| M0 console spike | **folded into `internal/tui`** — see below |
+| M1 import and storage | done |
+| M2 the reader | done, pending the twenty-minute sit-down |
+| M3 EPUB | scaffolding done, both packages **reserved and red** |
+| M4 converters and the shim | done; `bt.cmd` is installed |
+| M5 polish | chapter offsets and the error log landed early, being cheap |
+
+**M0 was never written as `cmd/spike`.** The ground it was meant to prove —
+VT on both handles, raw mode, the alternate buffer, one write per frame,
+decoded keystrokes, restore on every exit path including panic, and the resize
+poll — is all in `internal/tui`, which M2 exercises directly. Nothing was
+skipped; there was just no throwaway to delete afterwards.
+
+What that leaves is the one thing a test cannot check: **the three-terminal
+run**. Windows Terminal, the old conhost, and the VS Code integrated terminal
+all have to look identical, and killing `bt` mid-run has to leave a working
+shell behind. That needs hands on a keyboard.
+
+Two things also want feeling out rather than testing: whether three lines of
+context is the right amount, and whether a wrong character advancing the caret
+(open question 2) reads well over a long sitting.
+
+### What was decided by building it
+
+- **Open question 1 — context.** Three lines each way, as `contextLines` in
+  `cmd/bt/read.go`, next to the wrap width. Both are one constant each.
+- **Open question 2 — the caret on a wrong character.** It advances, and the
+  cell shows the character that *should* have been typed, in red. The wrongly
+  typed one is never inserted, so the line stays aligned and the wrapping
+  stays stable.
+- **Open question 3 — blank lines.** Newlines are stepped over, never typed.
+  Enter and Tab do nothing rather than counting as wrong: they are not
+  mistakes in the text. Whether a chapter-number line should be skipped too is
+  still open, and wants real use.
+- **Open question 4 — the source file.** Kept, as `source.<ext>`.
+- **Open question 5 — front matter.** Left inside the reserved work, and
+  written down as §8 of `internal/norm/SPEC.md`: a conservative trim to the
+  last chapter opening in the first 10%, and no trim at all when there is no
+  heading to find.
+
+### Not yet true
+
+- No EPUB, PDF or MOBI has actually been imported end to end, because
+  `epub.Extract` is reserved and neither converter is installed on this
+  machine. The dispatch, the error paths and the messages are built and
+  tested; the conversions themselves are unrun.
+- `bt` has not been sat in for twenty minutes. M2's done-when is unmet until
+  it has been.
+
+---
+
 ## M0 — the console spike
 
 The one genuinely risky part, so it goes first and gets proved in isolation
