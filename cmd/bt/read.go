@@ -205,15 +205,22 @@ func (r *reader) key(k tui.Key) bool {
 	case tui.KeyRune:
 		r.typeRune(k.Rune)
 
+	case tui.KeyDown:
+		r.lineDown()
+
+	case tui.KeyUp:
+		r.lineUp()
+
 	case tui.KeyTab, tui.KeyEnter:
 		// The text has no tabs, and newlines are stepped over rather than
 		// typed, so neither key has anything to do. Ignored rather than
 		// counted wrong: it is not a mistake in the text.
 
 	default:
-		// Arrows, Home, the Page keys. Moving the caret freely would let the
-		// position drift away from what has actually been read, so they do
-		// nothing. Reading forwards is what advances the book.
+		// Left, Right, Home, the Page keys. Moving the caret freely within a
+		// line would let the position drift away from what has actually been
+		// read, so they do nothing. Up and Down are the exception, and the
+		// reason for it is at the top of navigate.go.
 	}
 	return false
 }
@@ -287,19 +294,7 @@ func (r *reader) render() error {
 		return r.renderTooSmall()
 	}
 
-	width := r.cols
-	if wrapWidth > 0 && wrapWidth < width {
-		width = wrapWidth
-	}
-	// The active line draws one cell past its text: the caret has to have
-	// somewhere to sit when the next thing to type is the whitespace a break
-	// consumed. Leave a column for it, or a full-width line runs one past the
-	// edge, wraps, and pushes the whole frame down a row. It also keeps the
-	// last row from filling its final cell, which would leave the cursor in
-	// the terminal's pending-wrap state.
-	if width >= r.cols {
-		width = r.cols - 1
-	}
+	width := r.pageWidth()
 	if width < minWidth {
 		return r.renderTooSmall()
 	}

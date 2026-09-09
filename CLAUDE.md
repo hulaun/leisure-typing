@@ -190,6 +190,23 @@ Colours: dim for context, normal for typed-correct, red for typed-wrong, bright
 for untyped-on-the-active-line, and a caret. That is the entire palette and it
 is the only correctness signal in the app.
 
+**Down and Up move one display line, without typing it.** Added on request on
+2026-09-09, after ten pages in one sitting: typing is what holds the attention,
+but the hands tire long before the reading stops being wanted, and the
+alternative to a way down the page is closing the book. Down counts the line
+as read and keeps progress moving; Up goes back to the head of the current
+line, or to the line above when already there, forgetting what was typed so
+the line can be typed again.
+
+This is not the first step towards free cursor movement, and Left, Right, Home
+and the Page keys stay inert. A caret loose *inside* a line lets the saved
+position drift away from what has actually been read; a line is a unit of the
+page, and the position after the move is still the head of something unread.
+It measures, blocks and scores nothing — see the table above, which is
+unchanged. `cmd/bt/navigate.go` holds the movement and `pageWidth`, which the
+renderer and the movement must agree on exactly or Down lands somewhere other
+than the line the reader can see below the caret.
+
 ---
 
 ## Gotchas (Windows console)
@@ -245,7 +262,29 @@ go build -o bin/bt.exe ./cmd/bt
 The binary is `bt`. A shim in `%LOCALAPPDATA%\Microsoft\WindowsApps` (on the
 Windows PATH by default) makes `bt` work from cmd, PowerShell, Git Bash and the
 VS Code terminal, from any directory — the same arrangement as quick-tools'
-`qt.cmd`.
+`qt.cmd`. `./restart.sh` writes the shim if it is missing.
+
+**`go test` passing is not evidence that the change is in the binary.** Rebuild
+with `./restart.sh` (`restart` from cmd), which is the inner loop:
+
+```bash
+./restart.sh              rebuild and run
+./restart.sh --test       vet and test first
+./restart.sh --no-launch  rebuild only
+./restart.sh --force      kill a running copy instead of refusing
+```
+
+It exists because `go build -o bin/bt.exe` does not fail while a copy of bt is
+running — Windows locks the exe, so Go renames the old one to `bin/bt.exe~`,
+writes the new one, and the copy on screen goes on running the old code. A
+change with no effect and a green suite is what that looks like from the
+outside, and it has already happened once.
+
+Unlike quick-tools' script, this one **refuses** rather than killing a running
+copy, and the difference is the point: Esc quits bt, saves the position,
+restores the console mode and drops the alternate buffer. `taskkill` skips all
+four, and leaves the terminal it was reading in with no echo (gotchas 4 and 7).
+`--force` is for a copy whose terminal is already lost.
 
 ```
 bt                    open the current book where it was left
@@ -259,7 +298,7 @@ bt use <name>         switch the current book
 ## Layout
 
 ```
-cmd/bt/            the binary; flags, subcommands, the run loop
+cmd/bt/            the binary; flags, subcommands, the run loop, Up/Down
 internal/epub/     EPUB -> text          container, spine, XHTML
 internal/norm/     Unicode -> ASCII      the character table
 internal/book/     import pipeline, meta.json, the on-disk store

@@ -403,3 +403,134 @@ func TestPageFillsFromTheTopAtTheStart(t *testing.T) {
 		}
 	}
 }
+
+// --- moving by a line -------------------------------------------------------
+//
+// Up and Down are the one way the caret moves without the text being typed.
+// The tests hold them to the shape that makes that safe: a move lands on the
+// head of a display line, never inside one, and Up undoes a Down exactly.
+
+// nav returns a reader at a known width, with the lines it will be moving
+// over. The width is the reader's own, so the test and the app agree on where
+// the breaks fall.
+func nav(t *testing.T, text string, cols int) (*reader, []wrap.Line) {
+	t.Helper()
+	r := newReader(text)
+	r.cols = cols
+	return r, wrap.Lines(r.text, r.pageWidth())
+}
+
+const navText = "alpha bravo charlie delta echo foxtrot golf hotel india\n\n" +
+	"juliett kilo lima mike november oscar papa quebec romeo\n"
+
+func TestLineDownLandsOnTheNextLine(t *testing.T) {
+	r, lines := nav(t, navText, 21)
+	if len(lines) < 3 {
+		t.Fatalf("the fixture wraps to %d lines; the test needs at least 3", len(lines))
+	}
+	r.lineDown()
+	if r.offset != lines[1].Start {
+		t.Errorf("offset = %d, want %d (the head of the second line)", r.offset, lines[1].Start)
+	}
+	r.lineDown()
+	if r.offset != lines[2].Start {
+		t.Errorf("offset = %d, want %d (the head of the third line)", r.offset, lines[2].Start)
+	}
+}
+
+// Skipped text counts as read, not as typed wrong: backspacing into it must
+// not paint a screenful of red that was never typed.
+func TestLineDownMarksSkippedTextRead(t *testing.T) {
+	r, lines := nav(t, navText, 21)
+	r.lineDown()
+	for i := 0; i < lines[1].Start; i++ {
+		if r.status[i] == wrong {
+			t.Fatalf("status[%d] = wrong: skipped text was counted as an error", i)
+		}
+	}
+	if !r.dirty {
+		t.Error("moving a line left the position unsaved")
+	}
+}
+
+// The gap between paragraphs is not a line to land on.
+func TestLineDownStepsOverTheParagraphGap(t *testing.T) {
+	r, _ := nav(t, navText, 21)
+	for i := 0; i < 20 && r.offset < len(r.text); i++ {
+		r.lineDown()
+		if r.offset < len(r.text) && r.text[r.offset] == '\n' {
+			t.Fatalf("landed on a newline at %d", r.offset)
+		}
+	}
+	// Every landing was the head of some drawn line, or the end of the book.
+	if r.offset != len(r.text) {
+		t.Errorf("offset = %d after running off the end, want %d", r.offset, len(r.text))
+	}
+}
+
+func TestLineUpUndoesLineDown(t *testing.T) {
+	r, _ := nav(t, navText, 21)
+	r.lineDown()
+	r.lineDown()
+	was := r.offset
+	r.lineUp()
+	if r.offset >= was {
+		t.Fatalf("offset = %d after Up, want less than %d", r.offset, was)
+	}
+	r.lineUp()
+	if r.offset != 0 {
+		t.Errorf("offset = %d, want 0 — Up did not undo Down", r.offset)
+	}
+}
+
+// From inside a line, Up goes to the head of that line and forgets what was
+// typed there, so the line can be typed again from the start.
+func TestLineUpFromMidLineForgetsTheLine(t *testing.T) {
+	r, lines := nav(t, navText, 21)
+	r.typeString("alp")
+	r.lineUp()
+	if r.offset != lines[0].Start {
+		t.Fatalf("offset = %d, want %d (the head of the line)", r.offset, lines[0].Start)
+	}
+	for i := 0; i < 3; i++ {
+		if r.status[i] != untyped {
+			t.Errorf("status[%d] = %v, want untyped", i, r.status[i])
+		}
+	}
+}
+
+func TestLineUpAtTheStartIsHarmless(t *testing.T) {
+	r, _ := nav(t, navText, 21)
+	r.lineUp()
+	if r.offset != 0 {
+		t.Errorf("offset = %d, want 0", r.offset)
+	}
+}
+
+func TestArrowKeysMoveTheLine(t *testing.T) {
+	r, lines := nav(t, navText, 21)
+	if quit := r.key(tui.Key{Type: tui.KeyDown}); quit {
+		t.Fatal("Down quit")
+	}
+	if r.offset != lines[1].Start {
+		t.Errorf("offset = %d, want %d", r.offset, lines[1].Start)
+	}
+	r.key(tui.Key{Type: tui.KeyUp})
+	if r.offset != 0 {
+		t.Errorf("offset = %d, want 0", r.offset)
+	}
+}
+
+// Left, Right and Home stay inert: a caret loose inside a line is what lets
+// the saved position drift away from what has been read.
+func TestOtherArrowsStillDoNothing(t *testing.T) {
+	r, _ := nav(t, navText, 21)
+	r.typeString("alpha")
+	was := r.offset
+	for _, k := range []tui.KeyType{tui.KeyLeft, tui.KeyRight, tui.KeyHome, tui.KeyEnd, tui.KeyPageUp, tui.KeyPageDown} {
+		r.key(tui.Key{Type: k})
+		if r.offset != was {
+			t.Fatalf("key %v moved the offset to %d, want %d", k, r.offset, was)
+		}
+	}
+}

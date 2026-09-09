@@ -29,7 +29,9 @@ const usage = `bt — read a book by typing it out
   bt list            list imported books, with progress
   bt use <name>      switch the current book
 
-While reading: type. Esc or Ctrl+C quits, and your place is saved.`
+While reading: type. Down and Up move a line without typing it, for when
+the hands are tired but the reading is not. Esc or Ctrl+C quits, and your
+place is saved.`
 
 func main() {
 	// Everything from here to the end of run() is inside the recover in
