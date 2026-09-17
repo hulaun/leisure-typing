@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A caret sitting on a line of text: the whole app in one mark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,46 h30 v5 h-30 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,57 h20 v5 h-20 z" />
+    <path
+        android:fillColor="#7FBFFF"
+        android:pathData="M64,40 h8 v28 h-8 z" />
+</vector>

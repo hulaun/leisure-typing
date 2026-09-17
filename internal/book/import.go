@@ -31,6 +31,14 @@ func (s *Store) Import(path string) (Meta, error) {
 	}
 
 	ext := strings.ToLower(filepath.Ext(path))
+
+	// A bundle is already-extracted, already-normalized text with a hash over
+	// it. It takes a different path entirely: importing it copies the bytes
+	// and verifies them, rather than deriving them again. See bundle.go.
+	if ext == BundleExt {
+		return s.importBundle(path)
+	}
+
 	var raw, title, author string
 
 	switch {
@@ -56,7 +64,7 @@ func (s *Store) Import(path string) (Meta, error) {
 
 	default:
 		return Meta{}, fmt.Errorf("%s is not a format this reads (.epub is the one to prefer; "+
-			".txt, .pdf, .mobi, .azw3 and .fb2 also work)", ext)
+			".txt, .pdf, .mobi, .azw3, .fb2 and .btbook also work)", ext)
 	}
 
 	// The one normalization pass. Everything downstream — the wrapper, the

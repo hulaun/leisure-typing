@@ -56,6 +56,14 @@ type reader struct {
 
 	dirty     bool // position changed since the last save
 	lastSaved time.Time
+
+	// The Place screen, nil when it is not open. See place.go.
+	place *place
+
+	// Where the last jump came from, so it can be undone. Jumping is the
+	// only thing in the app that can lose your place.
+	prevOffset int
+	hasPrev    bool
 }
 
 // read opens the current book and runs until the user quits.
@@ -195,9 +203,18 @@ func (r *reader) run() error {
 
 // key applies one keystroke and reports whether to quit.
 func (r *reader) key(k tui.Key) bool {
+	// The Place screen consumes every key while it is open, so that a digit
+	// typed into its field cannot also be typed into the book.
+	if r.place != nil {
+		return r.placeKey(k)
+	}
+
 	switch k.Type {
 	case tui.KeyEsc, tui.KeyCtrlC:
 		return true
+
+	case tui.KeyCtrlG:
+		r.openPlace()
 
 	case tui.KeyBackspace:
 		r.back()
@@ -288,6 +305,10 @@ func (r *reader) save() error {
 // --- rendering --------------------------------------------------------------
 
 func (r *reader) render() error {
+	if r.place != nil {
+		return r.renderPlace()
+	}
+
 	// The page has to fit above the rule and the status line.
 	avail := r.rows - 2
 	if avail < 1 {
@@ -414,30 +435,14 @@ func (r *reader) activeLine(l wrap.Line) string {
 // That is the whole reward loop — nobody types 40,000 words without being able
 // to see it moving.
 func (r *reader) statusLine(width int) string {
-	pct := 0.0
-	words := 0
-	if len(r.text) > 0 {
-		through := float64(r.offset) / float64(len(r.text))
-		pct = through * 100
-		// Estimated from the position rather than counted every frame.
-		words = int(float64(r.meta.Words) * through)
-	}
-
-	right := fmt.Sprintf("%.0f%%   %s words", pct, comma(words))
-	left := r.meta.ChapterAt(r.offset)
+	// progressAt is shared with the Place screen: the number you copy off one
+	// screen has to match what you check on the other (place.go).
+	left, pct, words := progressAt(r.meta, len(r.text), r.offset)
 	if left == "" {
 		left = r.meta.Title
 	}
-
-	gap := width - len([]rune(right)) - len([]rune(left))
-	if gap < 1 {
-		left = trim(left, maxInt(1, width-len([]rune(right))-2))
-		gap = width - len([]rune(right)) - len([]rune(left))
-		if gap < 1 {
-			gap = 1
-		}
-	}
-	return tui.Status + left + strings.Repeat(" ", gap) + right + tui.Reset
+	right := fmt.Sprintf("%.0f%%   %s words", pct, comma(words))
+	return tui.Status + spread(left, right, width) + tui.Reset
 }
 
 func (r *reader) renderTooSmall() error {

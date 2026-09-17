@@ -116,6 +116,7 @@ for these two explicitly; that is what changed, not the default.
 | `.epub` | ZIP of XHTML, walk the spine | native |
 | `.pdf` | shell out to `pdftotext -layout` (poppler) | external |
 | `.mobi`, `.azw3`, `.fb2` | shell out to `ebook-convert` (Calibre) | external |
+| `.btbook` | a book already extracted by bt, for carrying between devices | native |
 
 **EPUB is the format to prefer and to tell the user to prefer.**
 
@@ -207,6 +208,124 @@ unchanged. `cmd/bt/navigate.go` holds the movement and `pageWidth`, which the
 renderer and the movement must agree on exactly or Down lands somewhere other
 than the line the reader can see below the caret.
 
+**Ctrl+G opens Place, which is how the position moves between machines.**
+Added on request on 2026-09-16. The position is a rune offset into an immutable
+file, so reading the number off one device and typing it into another *is* a
+complete sync — no cable, no protocol, no clock, no conflict resolution. Place
+shows where you are and takes a number; `bt pos [offset]` is the same thing
+from the command line, for when the book is not open.
+
+Typing a six-digit number by hand is the risk, and the screen answers it with a
+**preview** rather than a check digit: as digits arrive it draws the offset
+after snapping, the chapter, the percentage and the line of text there. A
+dropped digit shows 4% instead of 23% before you press Enter, and a number
+copied from a different book shows a sentence you do not recognise — a checksum
+catches the first and not the second. Six characters of the text sha256 sit on
+the screen next to the offset for the same reason: an offset only means
+anything against one exact `text.txt`, and two devices showing different hashes
+is the one failure nothing else would report.
+
+A jump lands on the head of a word, never inside one, so the position after it
+is still the head of something unread — which is why it does not reopen the
+argument against free cursor movement above. It is also the only operation that
+can lose your place, so it is the only one with an undo (Ctrl+Z).
+`cmd/bt/place.go` holds the screen and `cmd/bt/SPEC.md` is the rule set, which
+stays authoritative the way the epub and norm specs do.
+
+---
+
+## Moving a book to another device
+
+Two things have to cross, and they are deliberately not the same mechanism,
+because they happen at wildly different rates.
+
+**The book crosses once, as a file.** `bt export <name>` writes one
+`.btbook` — a zip of `bundle.json`, `meta.json`, `text.txt` and
+`progress.json` — and you drag it over the cable in Explorer. `bt import` takes
+it back. Once per book is rare enough that Windows copying a file is the whole
+transport; there is no protocol, no adb and no pairing, and none was built.
+
+With no destination the file lands in **`bt-books/`**, beside `storage/` and
+not inside it, whatever directory `bt` was run from — an export is looked for
+again later, and one known place beats a trail of `.btbook` files across the
+disk. It is outside `storage/` because the point of a bundle is to be found in
+Explorer and dragged across; `bt export <name> <path>` still overrides it.
+
+`source.epub` is **not** in the bundle. The laptop is the archive; the far
+device gets the derived text only, so extraction still happens exactly once
+(decision 1) and the far device never needs an extractor at all.
+
+Importing a bundle does **not** re-run the normalizer and does not re-derive
+chapters or word counts. It copies `text.txt` byte for byte and verifies it
+against the sha256 the exporter recorded, refusing the import outright on a
+mismatch. This is the invariant everything else hangs off: a reading position
+is a rune offset into those exact bytes, so re-deriving the text on the far
+side is what would turn "resume" back into a search problem — and worse, would
+do it silently.
+
+**The position crosses every time, as a number.** That is the Place screen
+above. Both devices print six characters of the text hash next to the offset,
+and if those disagree the number is not transferable.
+
+An automated sync over the cable (adb port-forward, a handful of JSON routes,
+a base-offset conflict rule) was designed and then **not built**, because
+typing one number in is not annoying enough to justify it. If it ever is, the
+`.btbook` format is unaffected — it would automate the number, not the book.
+
+---
+
+## The phone app (`android/`)
+
+Built on request on 2026-09-16. Kotlin, `minSdk 26`, and **no AndroidX and no
+Compose**: a plain `Activity` and a custom `View` drawing on a `Canvas`. The
+page is a monospace grid, a caret and a status line, so a UI framework would be
+most of the APK and would buy nothing — the same argument this file already
+makes for rejecting bubbletea. The release APK is about 640 KB and the only
+dependency is the Kotlin stdlib.
+
+**The phone never imports from source and never normalizes anything.** It takes
+a `.btbook`, copies the text and verifies the hash. That is what keeps this app
+free of an EPUB parser and a character table, and it is why extraction still
+happens exactly once (decision 1).
+
+It also **refuses a text that is not plain ASCII**, which the Go side does not
+need to: offsets there are rune offsets, while a Kotlin `String` is indexed by
+`Char`. The two are the same number only because normalization guarantees ASCII,
+so that guarantee is checked on import rather than assumed. Without the check, a
+single non-ASCII character would silently shift every offset after it, and the
+error would grow the further you read.
+
+### The conformance golden — IMPORTANT
+
+There are now **two implementations of the wrapper**, and they have to agree
+about what an offset means, or a position carried between the devices lands
+somewhere else and the reader has no way to tell that is what happened.
+
+`testdata/conformance/` holds a fixture and a golden of the exact lines the
+wrapper produces at four widths, plus what `Window` returns at eleven offsets —
+`Window` separately, because an agreeing full layout and a disagreeing window
+would still send Down to the wrong place. **Both sides verify against that
+golden and neither is the reference for the other**, so a drift in either is
+caught rather than propagated.
+
+After a deliberate change to the wrapping:
+
+```bash
+LEISURE_GOLDEN=1 go test ./internal/wrap/     # regenerate
+./restart-android.sh                          # fails until the port agrees
+```
+
+What is on screen there: the same page, the same palette, and the same Place
+screen with the same preview and the same six characters of hash. `Down` is a
+button as well as a key, because on a phone the hands-tired case is most of the
+time. `Left`, `Right`, `Home` and the page keys are inert, as on the laptop.
+
+The IME is set to `TYPE_TEXT_VARIATION_VISIBLE_PASSWORD` plus
+`TYPE_TEXT_FLAG_NO_SUGGESTIONS`, and the input connection handles both commit
+and compose, applying only the difference from the previous composing text.
+Autocorrect would otherwise type words that are not in the book, and
+`NO_SUGGESTIONS` alone is advisory and widely ignored.
+
 ---
 
 ## Gotchas (Windows console)
@@ -286,11 +405,26 @@ restores the console mode and drops the alternate buffer. `taskkill` skips all
 four, and leaves the terminal it was reading in with no echo (gotchas 4 and 7).
 `--force` is for a copy whose terminal is already lost.
 
+The phone app builds with `./restart-android.sh`, which finds the JDK, the SDK
+and a cached Gradle distribution itself:
+
+```bash
+./restart-android.sh              test, build release, copy to bin/bt-<version>.apk
+./restart-android.sh --no-test    skip the unit tests
+./restart-android.sh --debug      the debug APK
+./restart-android.sh --install    also adb install it, if a device is attached
+```
+
+There is no Gradle wrapper jar in the repo, deliberately — a checked-in binary
+blob is worth avoiding when a cached distribution is already on the machine.
+
 ```
 bt                    open the current book where it was left
 bt import <file>      import a book and make it current
 bt list               list imported books, with progress
 bt use <name>         switch the current book
+bt pos [offset]       show the reading position, or go to one
+bt export <name>      write one .btbook file into bt-books/, to carry elsewhere
 ```
 
 ---
@@ -298,7 +432,7 @@ bt use <name>         switch the current book
 ## Layout
 
 ```
-cmd/bt/            the binary; flags, subcommands, the run loop, Up/Down
+cmd/bt/            the binary; flags, subcommands, the run loop, Up/Down, Place
 internal/epub/     EPUB -> text          container, spine, XHTML
 internal/norm/     Unicode -> ASCII      the character table
 internal/book/     import pipeline, meta.json, the on-disk store
@@ -306,8 +440,13 @@ internal/progress/ progress.json: read, write, hash check
 internal/tui/      console mode, alt screen, frame buffer, input decode
 internal/wrap/     greedy word wrap into display lines
 internal/convert/  finding and running pdftotext / ebook-convert
+internal/book/     ... including bundle.go, the .btbook export/import
 storage/books/     imported books (gitignored)
+bt-books/          exported .btbook bundles, where bt export writes (gitignored)
+bin/               bt.exe and the APK restart-android.sh copies out (gitignored)
 testdata/          fixture books, including a hand-built minimal .epub
+testdata/conformance/  the fixture and golden both wrappers verify against
+android/           the phone app: Kotlin, no AndroidX, no Compose
 ```
 
 ### Dependencies

@@ -13,6 +13,8 @@ const (
 	KeyTab
 	KeyEsc
 	KeyCtrlC
+	KeyCtrlG // opens the Place screen; see cmd/bt/place.go
+	KeyCtrlZ // undoes the last jump, on the Place screen
 	KeyUp
 	KeyDown
 	KeyLeft
@@ -49,6 +51,10 @@ func Decode(b []byte) (Key, int) {
 	switch b[0] {
 	case 0x03:
 		return Key{Type: KeyCtrlC}, 1
+	case 0x07:
+		return Key{Type: KeyCtrlG}, 1
+	case 0x1a:
+		return Key{Type: KeyCtrlZ}, 1
 	case '\r', '\n':
 		return Key{Type: KeyEnter}, 1
 	case '\t':

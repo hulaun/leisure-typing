@@ -70,6 +70,12 @@ func (s *Store) TextPath(id string) string     { return filepath.Join(s.Dir(id),
 func (s *Store) MetaPath(id string) string     { return filepath.Join(s.Dir(id), "meta.json") }
 func (s *Store) ProgressPath(id string) string { return filepath.Join(s.Dir(id), "progress.json") }
 
+// BundleDir is where `bt export` writes when no destination is given: a
+// bt-books/ directory beside the store, so an export is in the same place
+// whatever directory bt was run from. It is not inside storage/ because the
+// point of a bundle is to be found in Explorer and dragged across a cable.
+func (s *Store) BundleDir() string { return filepath.Join(filepath.Dir(s.Root), "bt-books") }
+
 // List returns the imported books, oldest import first.
 func (s *Store) List() ([]Meta, error) {
 	entries, err := os.ReadDir(s.booksDir())

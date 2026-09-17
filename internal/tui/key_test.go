@@ -18,6 +18,8 @@ func TestDecodeSimpleKeys(t *testing.T) {
 		{"\x08", KeyBackspace, 0, 1},
 		{"\x7f", KeyBackspace, 0, 1},
 		{"\x03", KeyCtrlC, 0, 1},
+		{"\x07", KeyCtrlG, 0, 1}, // opens the Place screen
+		{"\x1a", KeyCtrlZ, 0, 1}, // undoes a jump, on that screen
 		{"\x1b", KeyEsc, 0, 1},
 	}
 	for _, c := range cases {

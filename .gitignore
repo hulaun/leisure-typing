@@ -1,2 +1,11 @@
 storage/
+
+# Everything either restart script builds: bt.exe, and the APK that
+# restart-android.sh copies out of android/app/build (which android/.gitignore
+# covers on its own).
 bin/
+
+# Exported .btbook bundles. These are the user's own books, the same as
+# storage/, and none of them belongs in the repo.
+bt-books/
+*.btbook

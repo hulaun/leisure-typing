@@ -1,0 +1,160 @@
+# leisure-typing wrap conformance golden
+# L <width> <index> <start> <end> <blank> <text>
+# W <width> <offset> <activeStart> <activeEnd> <lines> <text>
+L 20 0 0 9 0 CHAPTER I
+L 20 1 9 11 1 
+L 20 2 11 31 0 The morning came in
+L 20 3 31 47 0 slowly over the
+L 20 4 47 66 0 roofs of the town,
+L 20 5 66 87 0 and a cart went past
+L 20 6 87 108 0 below the window and
+L 20 7 108 128 0 did not stop at any
+L 20 8 128 133 0 door.
+L 20 9 133 135 1 
+L 20 10 135 156 0 He counted the panes
+L 20 11 156 177 0 of glass twice over,
+L 20 12 177 194 0 and then a third
+L 20 13 194 212 0 time, because the
+L 20 14 212 232 0 counting was easier
+L 20 15 232 253 0 than the waiting had
+L 20 16 253 271 0 been, and because
+L 20 17 271 291 0 nobody had yet come
+L 20 18 291 310 0 down the stairs to
+L 20 19 310 329 0 tell him otherwise.
+L 20 20 329 332 1 
+L 20 21 332 353 0 A word that is quite
+L 20 22 353 371 0 unreasonably long
+L 20 23 371 380 0 follows:
+L 20 24 380 400 0 antidisestablishment
+L 20 25 400 418 0 arianism, and the
+L 20 26 418 439 0 wrapper has to break
+L 20 27 439 458 0 it rather than run
+L 20 28 458 479 0 past the edge of the
+L 20 29 479 484 0 page.
+L 20 30 484 486 1 
+L 20 31 486 496 0 CHAPTER II
+L 20 32 496 498 1 
+L 20 33 498 519 0 Later there would be
+L 20 34 519 540 0 work, and the relief
+L 20 35 540 555 0 of it, and the
+L 20 36 555 573 0 ordinary noise of
+L 20 37 573 592 0 other people going
+L 20 38 592 608 0 about their own
+L 20 39 608 627 0 mornings as though
+L 20 40 627 639 0 nothing had
+L 20 41 639 649 0 happened.
+L 33 0 0 9 0 CHAPTER I
+L 33 1 9 11 1 
+L 33 2 11 43 0 The morning came in slowly over
+L 33 3 43 77 0 the roofs of the town, and a cart
+L 33 4 77 108 0 went past below the window and
+L 33 5 108 133 0 did not stop at any door.
+L 33 6 133 135 1 
+L 33 7 135 165 0 He counted the panes of glass
+L 33 8 165 194 0 twice over, and then a third
+L 33 9 194 225 0 time, because the counting was
+L 33 10 225 259 0 easier than the waiting had been,
+L 33 11 259 291 0 and because nobody had yet come
+L 33 12 291 319 0 down the stairs to tell him
+L 33 13 319 329 0 otherwise.
+L 33 14 329 332 1 
+L 33 15 332 366 0 A word that is quite unreasonably
+L 33 16 366 380 0 long follows:
+L 33 17 380 414 0 antidisestablishmentarianism, and
+L 33 18 414 442 0 the wrapper has to break it
+L 33 19 442 475 0 rather than run past the edge of
+L 33 20 475 484 0 the page.
+L 33 21 484 486 1 
+L 33 22 486 496 0 CHAPTER II
+L 33 23 496 498 1 
+L 33 24 498 529 0 Later there would be work, and
+L 33 25 529 555 0 the relief of it, and the
+L 33 26 555 586 0 ordinary noise of other people
+L 33 27 586 620 0 going about their own mornings as
+L 33 28 620 649 0 though nothing had happened.
+L 40 0 0 9 0 CHAPTER I
+L 40 1 9 11 1 
+L 40 2 11 47 0 The morning came in slowly over the
+L 40 3 47 87 0 roofs of the town, and a cart went past
+L 40 4 87 128 0 below the window and did not stop at any
+L 40 5 128 133 0 door.
+L 40 6 133 135 1 
+L 40 7 135 171 0 He counted the panes of glass twice
+L 40 8 171 212 0 over, and then a third time, because the
+L 40 9 212 253 0 counting was easier than the waiting had
+L 40 10 253 291 0 been, and because nobody had yet come
+L 40 11 291 329 0 down the stairs to tell him otherwise.
+L 40 12 329 332 1 
+L 40 13 332 371 0 A word that is quite unreasonably long
+L 40 14 371 410 0 follows: antidisestablishmentarianism,
+L 40 15 410 449 0 and the wrapper has to break it rather
+L 40 16 449 484 0 than run past the edge of the page.
+L 40 17 484 486 1 
+L 40 18 486 496 0 CHAPTER II
+L 40 19 496 498 1 
+L 40 20 498 533 0 Later there would be work, and the
+L 40 21 533 573 0 relief of it, and the ordinary noise of
+L 40 22 573 608 0 other people going about their own
+L 40 23 608 649 0 mornings as though nothing had happened.
+L 68 0 0 9 0 CHAPTER I
+L 68 1 9 11 1 
+L 68 2 11 77 0 The morning came in slowly over the roofs of the town, and a cart
+L 68 3 77 133 0 went past below the window and did not stop at any door.
+L 68 4 133 135 1 
+L 68 5 135 200 0 He counted the panes of glass twice over, and then a third time,
+L 68 6 200 263 0 because the counting was easier than the waiting had been, and
+L 68 7 263 329 0 because nobody had yet come down the stairs to tell him otherwise.
+L 68 8 329 332 1 
+L 68 9 332 380 0 A word that is quite unreasonably long follows:
+L 68 10 380 449 0 antidisestablishmentarianism, and the wrapper has to break it rather
+L 68 11 449 484 0 than run past the edge of the page.
+L 68 12 484 486 1 
+L 68 13 486 496 0 CHAPTER II
+L 68 14 496 498 1 
+L 68 15 498 564 0 Later there would be work, and the relief of it, and the ordinary
+L 68 16 564 627 0 noise of other people going about their own mornings as though
+L 68 17 627 649 0 nothing had happened.
+W 20 0 0 9 9 CHAPTER I
+W 20 1 0 9 9 CHAPTER I
+W 20 10 11 31 20 The morning came in
+W 20 50 47 66 7 roofs of the town,
+W 20 120 108 128 20 did not stop at any
+W 20 200 194 212 10 time, because the
+W 20 260 253 271 10 been, and because
+W 20 300 291 310 28 down the stairs to
+W 20 400 400 418 9 arianism, and the
+W 20 500 498 519 11 Later there would be
+W 20 600 592 608 9 about their own
+W 33 0 0 9 6 CHAPTER I
+W 33 1 0 9 6 CHAPTER I
+W 33 10 11 43 14 The morning came in slowly over
+W 33 50 43 77 14 the roofs of the town, and a cart
+W 33 120 108 133 14 did not stop at any door.
+W 33 200 194 225 7 time, because the counting was
+W 33 260 259 291 7 and because nobody had yet come
+W 33 300 291 319 19 down the stairs to tell him
+W 33 400 380 414 6 antidisestablishmentarianism, and
+W 33 500 498 529 7 Later there would be work, and
+W 33 600 586 620 5 going about their own mornings as
+W 40 0 0 9 6 CHAPTER I
+W 40 1 0 9 6 CHAPTER I
+W 40 10 11 47 12 The morning came in slowly over the
+W 40 50 47 87 12 roofs of the town, and a cart went past
+W 40 120 87 128 12 below the window and did not stop at any
+W 40 200 171 212 15 over, and then a third time, because the
+W 40 260 253 291 15 been, and because nobody had yet come
+W 40 300 291 329 15 down the stairs to tell him otherwise.
+W 40 400 371 410 12 follows: antidisestablishmentarianism,
+W 40 500 498 533 6 Later there would be work, and the
+W 40 600 573 608 4 other people going about their own
+W 68 0 0 9 4 CHAPTER I
+W 68 1 0 9 4 CHAPTER I
+W 68 10 11 77 8 The morning came in slowly over the roofs of the town, and a cart
+W 68 50 11 77 8 The morning came in slowly over the roofs of the town, and a cart
+W 68 120 77 133 8 went past below the window and did not stop at any door.
+W 68 200 200 263 10 because the counting was easier than the waiting had been, and
+W 68 260 200 263 10 because the counting was easier than the waiting had been, and
+W 68 300 263 329 10 because nobody had yet come down the stairs to tell him otherwise.
+W 68 400 380 449 9 antidisestablishmentarianism, and the wrapper has to break it rather
+W 68 500 498 564 5 Later there would be work, and the relief of it, and the ordinary
+W 68 600 564 627 5 noise of other people going about their own mornings as though
