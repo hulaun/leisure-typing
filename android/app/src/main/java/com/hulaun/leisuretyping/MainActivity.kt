@@ -4,7 +4,6 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -16,6 +15,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.inputmethod.InputMethodManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -43,6 +43,12 @@ class MainActivity : Activity() {
     private var page: PageView? = null
     private var reader: Reader? = null
     private var keyboardShown = false
+    private var palette = Palette.DARK
+
+    /** The reader's own views, recoloured in place when the theme changes. */
+    private var readerCol: LinearLayout? = null
+    private var bar: LinearLayout? = null
+    private val barButtons = ArrayList<Button>()
 
     private val saveTick = Handler(Looper.getMainLooper())
     private val saver = object : Runnable {
@@ -57,6 +63,8 @@ class MainActivity : Activity() {
         store = Store(filesDir)
         root = FrameLayout(this)
         setContentView(root)
+        palette = if (prefs().getBoolean(KEY_LIGHT, false)) Palette.LIGHT else Palette.DARK
+        applySystemBars()
         applySafeArea(root)
 
         val current = store.currentId()
@@ -100,6 +108,7 @@ class MainActivity : Activity() {
             reader = r
 
             val v = PageView(this)
+            v.palette = palette
             v.reader = r
             v.setTextSizePx(prefs().getFloat(KEY_TEXT_SIZE, 42f))
             v.onMoved = { }
@@ -119,37 +128,87 @@ class MainActivity : Activity() {
     private fun readerLayout(v: PageView): View {
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.BLACK)
+            setBackgroundColor(palette.background)
         }
+        readerCol = col
         col.addView(v, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.parseColor("#FF101010"))
+            setBackgroundColor(palette.bar)
         }
+        this.bar = bar
+        barButtons.clear()
         // Down is a first-class control here, not only a key. Typing is what
         // holds the attention, but the hands tire long before the reading stops
         // being wanted, and on a phone that is most of the time. Down counts
         // the line as read and keeps progress moving; Up goes back so a line
         // can be typed again.
         fun barButton(label: String, onClick: () -> Unit) {
-            bar.addView(Button(this).apply {
+            val b = Button(this).apply {
                 text = label
-                setTextColor(Color.parseColor("#FFC8C8C8"))
-                setBackgroundColor(Color.parseColor("#FF101010"))
+                setTextColor(palette.barText)
+                setBackgroundColor(palette.bar)
                 setOnClickListener { onClick() }
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            }
+            barButtons.add(b)
+            bar.addView(b, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
         barButton("↑") { reader?.lineUp(); v.invalidate() }
         barButton("↓") { reader?.lineDown(); v.invalidate() }
         barButton("Keys") { toggleKeyboard(v) }
         barButton("Place") { showPlace() }
+        barButton("◐") { toggleTheme() }
         barButton("≡") { showMenu() }
 
         col.addView(bar, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         return col
+    }
+
+    // --- the theme -----------------------------------------------------------
+
+    /**
+     * Swaps dark and light, and remembers the choice. The views are recoloured
+     * in place rather than rebuilt, so what has been typed on the active line
+     * (and the red in it) survives the switch.
+     */
+    private fun toggleTheme() {
+        palette = if (palette === Palette.DARK) Palette.LIGHT else Palette.DARK
+        prefs().edit().putBoolean(KEY_LIGHT, palette === Palette.LIGHT).apply()
+
+        page?.palette = palette
+        readerCol?.setBackgroundColor(palette.background)
+        bar?.setBackgroundColor(palette.bar)
+        for (b in barButtons) {
+            b.setTextColor(palette.barText)
+            b.setBackgroundColor(palette.bar)
+        }
+        applySystemBars()
+    }
+
+    /**
+     * Colours what shows around the page: the window behind the safe-area
+     * padding, and the status and navigation bars, whose icons have to turn
+     * dark on the light page or they vanish into it.
+     */
+    @Suppress("DEPRECATION")
+    private fun applySystemBars() {
+        root.setBackgroundColor(palette.background)
+        window.statusBarColor = palette.background
+        window.navigationBarColor = palette.bar
+        val light = palette === Palette.LIGHT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            window.insetsController?.setSystemBarsAppearance(if (light) mask else 0, mask)
+        } else {
+            val flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            val d = window.decorView
+            d.systemUiVisibility = if (light) d.systemUiVisibility or flags
+            else d.systemUiVisibility and flags.inv()
+        }
     }
 
     // --- Place ---------------------------------------------------------------
@@ -251,17 +310,20 @@ class MainActivity : Activity() {
     private fun showLibrary() {
         reader = null
         page = null
+        readerCol = null
+        bar = null
+        barButtons.clear()
         val books = store.list()
 
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.BLACK)
+            setBackgroundColor(palette.background)
         }
         val pad = (16 * resources.displayMetrics.density).toInt()
 
         col.addView(TextView(this).apply {
             text = if (books.isEmpty()) "No books yet" else "Books"
-            setTextColor(Color.WHITE)
+            setTextColor(palette.heading)
             textSize = 22f
             setPadding(pad, pad, pad, pad / 2)
         })
@@ -270,7 +332,7 @@ class MainActivity : Activity() {
             col.addView(TextView(this).apply {
                 text = "On the laptop:\n\n    bt export <book>\n\n" +
                     "Copy the .btbook file here over the cable, then import it below."
-                setTextColor(Color.parseColor("#FF9A9A9A"))
+                setTextColor(palette.muted)
                 setPadding(pad, 0, pad, pad)
             })
         } else {
@@ -286,7 +348,7 @@ class MainActivity : Activity() {
             ) {
                 override fun getView(pos: Int, cv: View?, parent: ViewGroup): View {
                     val tv = super.getView(pos, cv, parent) as TextView
-                    tv.setTextColor(Color.parseColor("#FFC8C8C8"))
+                    tv.setTextColor(palette.normal)
                     return tv
                 }
             }
@@ -486,5 +548,6 @@ class MainActivity : Activity() {
         private const val REQ_IMPORT = 1
         private const val SAVE_DEBOUNCE_MS = 2000L
         private const val KEY_TEXT_SIZE = "textSizePx"
+        private const val KEY_LIGHT = "lightTheme"
     }
 }

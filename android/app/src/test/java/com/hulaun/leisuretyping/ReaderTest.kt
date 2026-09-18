@@ -142,6 +142,57 @@ class ReaderTest {
         assertEquals(0, r.offset)
     }
 
+    // --- dragging the page ----------------------------------------------------
+
+    private val paras = "alpha bravo charlie delta echo foxtrot golf hotel india juliet " +
+        "kilo lima mike november oscar papa quebec romeo sierra tango\n\n" +
+        "uniform victor whiskey xray yankee zulu alpha bravo charlie delta " +
+        "echo foxtrot golf hotel india juliet kilo lima\n"
+
+    @Test
+    fun `a drag forwards is Down repeated`() {
+        val a = reader(paras)
+        val b = reader(paras)
+        a.scrollLines(2)
+        b.lineDown(); b.lineDown()
+        assertEquals(b.offset, a.offset)
+        for (i in 0 until a.offset) assertEquals("status[$i]", CORRECT, a.status[i])
+    }
+
+    @Test
+    fun `a drag back from mid-line lands on the line above`() {
+        val r = reader(paras)
+        r.lineDown()
+        val second = r.offset
+        r.type("uni") // mid-line, wrong characters and all
+        r.scrollLines(-1)
+        assertEquals("did not land on the head of the line above", 0, r.offset)
+        for (i in 0 until second + 3) assertEquals("status[$i]", UNTYPED, r.status[i])
+    }
+
+    /** The gap between paragraphs is a row on screen but not a line to land on. */
+    @Test
+    fun `a drag onto the paragraph gap carries on past it`() {
+        val r = reader(paras)
+        val lines = window(r.doc, 0, r.pageWidth(), 0, 20).lines
+        val gap = lines.indexOfFirst { it.blank }
+        r.scrollLines(gap)
+        assertEquals(lines[gap + 1].start, r.offset)
+    }
+
+    @Test
+    fun `a drag past either end stops at the end`() {
+        val r = reader(paras)
+        r.scrollLines(-5)
+        assertEquals(0, r.offset)
+        r.scrollLines(100)
+        val lines = allLines(r.doc, r.pageWidth())
+        assertEquals(lines.last { !it.blank }.start, r.offset)
+        val was = r.offset
+        r.scrollLines(3)
+        assertEquals("a drag forwards moved backwards", was, r.offset)
+    }
+
     // --- the word snap -------------------------------------------------------
 
     @Test

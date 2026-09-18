@@ -320,6 +320,14 @@ screen with the same preview and the same six characters of hash. `Down` is a
 button as well as a key, because on a phone the hands-tired case is most of the
 time. `Left`, `Right`, `Home` and the page keys are inert, as on the laptop.
 
+**Dragging the page, and a light theme** — both added on request on
+2026-09-18. A drag moves the text with the finger; on release the line nearest
+the active row becomes the active line, from its head (`Reader.scrollLines`).
+It is Up/Down repeated — forwards marks read, backwards forgets — not a jump,
+so it has no undo and still never leaves the caret inside a line. The `◐`
+button swaps to a warm light palette after the dark one hurt on the phone;
+`Palette.kt` holds both, and a theme changes the values, never the five roles.
+
 The IME is set to `TYPE_TEXT_VARIATION_VISIBLE_PASSWORD` plus
 `TYPE_TEXT_FLAG_NO_SUGGESTIONS`, and the input connection handles both commit
 and compose, applying only the difference from the previous composing text.

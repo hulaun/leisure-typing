@@ -2,17 +2,20 @@ package com.hulaun.leisuretyping
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.text.InputType
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
+import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /**
  * The page: context above and below the active line, so it reads as a book
@@ -21,7 +24,8 @@ import kotlin.math.floor
  * The whole screen is the page, in both directions, and the palette is the
  * terminal's: dim for context, normal for typed-correct, red for typed-wrong,
  * bright for untyped on the active line, and a caret. That is the entire
- * palette and it is the only correctness signal in the app.
+ * palette and it is the only correctness signal in the app. [Palette] holds
+ * the values, in a dark and a light theme.
  *
  * This is a plain View drawing on a Canvas. The page is a monospace grid, a
  * caret and a status line; a UI framework would be most of the APK and would
@@ -30,15 +34,12 @@ import kotlin.math.floor
  */
 class PageView(context: Context) : View(context) {
 
-    // The palette, in one place. Nothing else hardcodes a colour.
-    private val colBackground = Color.parseColor("#FF000000")
-    private val colDim = Color.parseColor("#FF6E6E6E") // context lines
-    private val colNormal = Color.parseColor("#FFC8C8C8") // typed correctly
-    private val colWrong = Color.parseColor("#FFFF5F5F") // typed wrongly
-    private val colBright = Color.parseColor("#FFFFFFFF") // untyped, active line
-    private val colRule = Color.parseColor("#FF3A3A3A")
-    private val colStatus = Color.parseColor("#FF6FB8C8")
-    private val colCaret = Color.parseColor("#FFFFFFFF")
+    var palette: Palette = Palette.DARK
+        set(value) {
+            field = value
+            setBackgroundColor(value.background)
+            invalidate()
+        }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = Typeface.MONOSPACE
@@ -66,7 +67,7 @@ class PageView(context: Context) : View(context) {
     init {
         isFocusable = true
         isFocusableInTouchMode = true
-        setBackgroundColor(colBackground)
+        setBackgroundColor(palette.background)
     }
 
     /** Sets the type size in pixels and re-measures the grid. */
@@ -104,44 +105,44 @@ class PageView(context: Context) : View(context) {
         val avail = rows - 2
         if (avail < 1 || width < Reader.MIN_WIDTH) return
 
-        // Ask for a screenful of context each way; it is trimmed to what fits
-        // just below. That is what fills the page in both directions.
-        val context = avail
-        val w = window(r.doc, r.offset, width, context, context)
-        var lo = maxOf(0, w.active - context)
-        val hi = minOf(w.lines.size - 1, w.active + context)
-        var visible = w.lines.subList(lo, hi + 1)
+        // Ask for a screenful of context each way, plus however far the page
+        // has been dragged; what does not fit is clipped. That is what fills
+        // the page in both directions.
+        val extra = ceil(abs(dragPx) / lineH).toInt() + 1
+        val w = window(r.doc, r.offset, width, avail + extra, avail + extra)
+        val activeRow = activeRow(w, avail)
 
-        // On a short screen, drop context rather than draw more rows than
-        // there are.
-        if (visible.size > avail) {
-            var start = (w.active - lo) - avail / 2 // keep the active line centred
-            if (start < 0) start = 0
-            if (start + avail > visible.size) start = visible.size - avail
-            lo += start
-            visible = visible.subList(start, start + avail)
-        }
+        // While the page is being dragged, the row the active line sits in
+        // shows which line letting go would land on. Nothing is typed there
+        // yet, so it is drawn plain bright, with no caret.
+        val landing = if (dragging) w.active + linesDragged() else -1
 
-        // Centre the page vertically, leaving the last two rows for the rule
-        // and the status line.
-        val top = maxOf(0, (avail - visible.size) / 2)
-        var y = padY + paint.fontMetrics.let { -it.top } + top * lineH
-
-        for (i in visible.indices) {
-            val line = visible[i]
-            if (!line.blank) {
-                if (lo + i == w.active) drawActiveLine(canvas, r, line, y)
-                else {
-                    paint.color = colDim
+        val pageBottom = padY + avail * lineH
+        val baseline = padY - paint.fontMetrics.top
+        canvas.save()
+        canvas.clipRect(0f, 0f, this.width.toFloat(), pageBottom)
+        for (j in w.lines.indices) {
+            val line = w.lines[j]
+            if (line.blank) continue
+            val y = baseline + (activeRow + j - w.active) * lineH + dragPx
+            if (y + paint.fontMetrics.bottom < 0f || y + paint.fontMetrics.top > pageBottom) continue
+            when {
+                dragging -> {
+                    paint.color = if (j == landing) palette.bright else palette.dim
+                    canvas.drawText(line.text, padX, y, paint)
+                }
+                j == w.active -> drawActiveLine(canvas, r, line, y)
+                else -> {
+                    paint.color = palette.dim
                     canvas.drawText(line.text, padX, y, paint)
                 }
             }
-            y += lineH
         }
+        canvas.restore()
 
         // The rule and the status line, on the last two rows.
         val ruleY = padY + (rows - 2) * lineH + lineH * 0.6f
-        fill.color = colRule
+        fill.color = palette.rule
         canvas.drawRect(padX, ruleY, padX + width * charW, ruleY + 2f, fill)
 
         drawStatusLine(canvas, r, width, padY + (rows - 1) * lineH + -paint.fontMetrics.top)
@@ -165,13 +166,13 @@ class PageView(context: Context) : View(context) {
 
             if (r.offset in off until next) {
                 // The caret cell, drawn as the terminal draws it: reverse video.
-                fill.color = colCaret
+                fill.color = palette.caret
                 canvas.drawRect(x, y + paint.fontMetrics.top, x + charW, y + paint.fontMetrics.bottom, fill)
-                paint.color = colBackground
+                paint.color = palette.background
             } else if (off < r.offset) {
-                paint.color = if (r.status[off] == WRONG) colWrong else colNormal
+                paint.color = if (r.status[off] == WRONG) palette.wrong else palette.normal
             } else {
-                paint.color = colBright
+                paint.color = palette.bright
             }
             canvas.drawText(cells, i, i + 1, x, y, paint)
         }
@@ -187,7 +188,7 @@ class PageView(context: Context) : View(context) {
         val left = chapter0.ifEmpty { r.meta.title }
         val right = "%.0f%%   %s words".format(pct, comma(words))
 
-        paint.color = colStatus
+        paint.color = palette.status
         canvas.drawText(right, padX + (width - right.length) * charW, y, paint)
 
         val room = width - right.length - 2
@@ -314,9 +315,86 @@ class PageView(context: Context) : View(context) {
         return super.onKeyDown(keyCode, event)
     }
 
+    // --- dragging the page ----------------------------------------------------
+
+    /**
+     * Dragging the page up or down, added on request on 2026-09-18 for the
+     * same reason the Down button exists: the hands tire before the reading
+     * stops being wanted, and one line per tap is slow going back over a page.
+     *
+     * The text follows the finger. On letting go, the line nearest the active
+     * row becomes the active line, from its head — so a drag is Up or Down
+     * repeated, never a caret loose inside a line (see [Reader.scrollLines]).
+     * A tap that does not move past the touch slop is still a tap, and still
+     * brings the keyboard focus back.
+     */
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var downY = 0f
+    private var dragging = false
+    private var dragPx = 0f
+
+    /** The row the active line is drawn in, when the page is not dragged. */
+    private fun activeRow(w: Windowed, avail: Int): Int {
+        val above = minOf(w.active, avail)
+        val below = minOf(w.lines.size - 1 - w.active, avail)
+        val size = above + below + 1
+        if (size <= avail) return (avail - size) / 2 + above // short book: centred
+        // Otherwise keep the active line centred, unless that would leave the
+        // page part empty at the start or end of the book.
+        val start = (above - avail / 2).coerceIn(0, size - avail)
+        return above - start
+    }
+
+    /** How many rows the drag has carried the text, forwards positive. */
+    private fun linesDragged(): Int = (-dragPx / lineH).roundToInt()
+
+    /**
+     * Stops the drag at the ends of the book: the first line cannot come down
+     * past the active row, nor the last go up past it.
+     */
+    private fun clampDrag(dy: Float): Float {
+        val r = reader ?: return 0f
+        val reach = ceil(abs(dy) / lineH).toInt() + 1
+        val w = window(r.doc, r.offset, r.pageWidth(), reach, reach)
+        val up = w.active * lineH
+        val down = (w.lines.size - 1 - w.active) * lineH
+        return dy.coerceIn(-down, up)
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.action == MotionEvent.ACTION_UP) {
-            performClick()
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downY = event.y
+                dragging = false
+                dragPx = 0f
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = event.y - downY
+                if (!dragging && abs(dy) > touchSlop) {
+                    dragging = true
+                    downY = event.y // start from here, so the text does not jump by the slop
+                }
+                if (dragging) {
+                    dragPx = clampDrag(event.y - downY)
+                    invalidate()
+                }
+            }
+            MotionEvent.ACTION_UP -> {
+                if (dragging) {
+                    val n = linesDragged()
+                    dragging = false
+                    dragPx = 0f
+                    reader?.scrollLines(n)
+                    afterInput()
+                } else {
+                    performClick()
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                dragging = false
+                dragPx = 0f
+                invalidate()
+            }
         }
         return true
     }

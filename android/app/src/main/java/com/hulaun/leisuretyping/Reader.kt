@@ -155,6 +155,49 @@ class Reader(val meta: Meta, text: String, startOffset: Int) {
         dirty = true
     }
 
+    /**
+     * Moves [n] display lines at once — where a drag of the page lets go.
+     *
+     * The view counts rows as they are drawn, gaps between paragraphs
+     * included, so [n] counts them too: the line that ends up in the active
+     * row is the one [n] rows away from the current one. A gap cannot be
+     * landed on, so a count that ends on one carries on in the same direction
+     * to the next real line.
+     *
+     * It is Up and Down repeated, not a jump: forwards marks what was passed
+     * over as read, backwards forgets it, and there is no undo, because the
+     * position after it is still the head of a line on the page the reader
+     * was looking at.
+     */
+    fun scrollLines(n: Int) {
+        if (n == 0) return
+        val reach = kotlin.math.abs(n) + 1
+        val w = window(doc, offset, pageWidth(), reach, reach)
+        val step = if (n > 0) 1 else -1
+
+        var i = (w.active + n).coerceIn(0, w.lines.size - 1)
+        while (i in w.lines.indices && w.lines[i].blank) i += step
+        if (i !in w.lines.indices) {
+            // Ran off the text looking for a real line. Backwards that is the
+            // first line of the book; forwards, the last line on offer.
+            i = if (step < 0) 0 else w.lines.indexOfLast { !it.blank }
+            if (i < 0) return
+        }
+
+        val target = w.lines[i].start
+        // Never the opposite way to the drag: at the last line, "forwards"
+        // would otherwise be the head of the line the caret is already on.
+        if (if (step > 0) target <= offset else target >= offset) return
+        if (target > offset) {
+            for (k in offset until target) status[k] = CORRECT
+        } else {
+            for (k in target until offset) status[k] = UNTYPED
+        }
+        offset = target
+        skipWhitespace()
+        dirty = true
+    }
+
     // --- jumping -------------------------------------------------------------
 
     /**
